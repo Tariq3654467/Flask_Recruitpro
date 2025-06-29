@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecruitAI - Intelligent Recruitment Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+        }
+        .app-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 15px;
+        }
+        .navbar {
+            background-color: #007bff;
+            padding: 10px 20px;
+        }
+        .navbar-brand {
+            color: white;
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .nav-link {
+            color: white !important;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+        .nav-link:hover, .nav-link.active {
+            color: #ffeb3b !important;
+        }
+        .page {
+            display: none;
+            padding: 20px;
+        }
+        .page.active {
+            display: block;
+        }
+        .page-header {
+            margin-bottom: 20px;
+        }
+        .page-header h2 {
+            font-size: 2rem;
+            color: #333;
+        }
+        .page-header p {
+            color: #666;
+            font-size: 1.1rem;
+        }
+        .card {
+            border: none;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f1f1;
+            border-bottom: none;
+            font-weight: 600;
+            color: #333;
+        }
+        .upload-container {
+            border: 2px dashed #ccc;
+            border-radius: 10px;
+            padding: 40px;
+            text-align: center;
+            background-color: #fff;
+            transition: border-color 0.3s;
+        }
+        .upload-container:hover {
+            border-color: #007bff;
+        }
+        .upload-icon {
+            font-size: 3rem;
+            color: #007bff;
+        }
+        .candidate-card {
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: box-shadow 0.3s;
+        }
+        .candidate-card:hover, .candidate-card.active {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        .candidate-image {
+            width: 40px;
+            height: 40px;
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+        .candidate-score {
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .skill-badge {
+            background-color: #e9ecef;
+            color: #333;
+            padding: 5px 10px;
+            border-radius: 12px;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-size: 0.9rem;
+        }
+        .strength-badge {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .warning-badge {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .chat-container {
+            max-height: 400px;
+            overflow-y: auto;
+            background-color: #fff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .chat-message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        .user-message {
+            background-color: #007bff;
+            color: white;
+            text-align: right;
+        }
+        .bot-message {
+            background-color: #e9ecef;
+            color: #333;
+        }
+        .message-sender {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        .vector-status {
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        .vector-status.online {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .vector-status.offline {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .footer {
+            background-color: #343a40;
+            color: white;
+            padding: 40px 0;
+            margin-top: 40px;
+        }
+        .footer-links a {
+            color: #ccc;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 10px;
+        }
+        .footer-links a:hover {
+            color: #fff;
+        }
+        .progress-bar {
+            transition: width 0.3s ease-in-out;
+        }
+        .animate-pop {
+            animation: pop 0.3s ease-out;
+        }
+        @keyframes pop {
+            0% { transform: scale(0.9); opacity: 0; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark sticky-top">
+        <div class="app-container">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-robot"></i> RecruitAI
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="home">
+                            <i class="fas fa-home"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="candidates">
+                            <i class="fas fa-users"></i> Candidates
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="chat">
+                            <i class="fas fa-comments"></i> Chat
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="reports">
+                            <i class="fas fa-chart-bar"></i> Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" data-page="settings">
+                            <i class="fas fa-cog"></i> Settings
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="app-container">
+        <!-- Home Page -->
+        <div id="home" class="page active">
+            <div class="page-header">
+                <h2>Intelligent Recruitment Assistant</h2>
+                <p>Upload resumes and job descriptions to find the best candidates using AI-powered analysis</p>
+            </div>
+            
+            <div class="row">
+                <!-- Left Column - Upload Area -->
+                <div class="col-lg-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-upload me-2"></i> Upload Resumes and Job Description
+                        </div>
+                        <div class="card-body">
+                            <div class="upload-container text-center">
+                                <i class="fas fa-cloud-upload-alt upload-icon"></i>
+                                <h4>Drag & Drop Resumes Here</h4>
+                                <p class="text-muted">Supported formats: PDF, DOCX</p>
+                                <input type="file" id="resume-upload" class="d-none" multiple accept=".pdf,.docx">
+                                <button class="btn btn-primary mt-3" id="browse-btn">
+                                    <i class="fas fa-folder-open me-2"></i> Browse Files
+                                </button>
+                            </div>
+                            
+                            <div class="mt-4">
+                                <label class="form-label fw-bold">Job Description</label>
+                                <textarea class="form-control" id="job-description" rows="5" placeholder="Enter job description here..."></textarea>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mt-4">
+                                <div>
+                                    <div class="form-check form-switch">
+                                        <input class="form-check-input" type="checkbox" id="rag-toggle" checked>
+                                        <label class="form-check-label" for="rag-toggle">Enable RAG Processing</label>
+                                    </div>
+                                </div>
+                                <div>
+                                    <button class="btn btn-primary btn-lg" id="process-resumes">
+                                        <i class="fas fa-cogs me-2"></i> Process Resumes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <i class="fas fa-tasks me-2"></i> Processing Status
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h5 class="mb-0">Resumes Uploaded</h5>
+                                <span class="badge bg-primary" id="resume-count">0</span>
+                            </div>
+                            <div class="progress mb-4">
+                                <div class="progress-bar" id="resume-progress" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0">Vector Database</h5>
+                                <span class="vector-status offline" id="vector-status">Offline (0 resumes indexed)</span>
+                            </div>
+                            <div class="d-grid mt-4">
+                                <button class="btn btn-outline-primary" id="init-db">
+                                    <i class="fas fa-cogs me-2"></i> Initialize Vector DB
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right Column - Stats -->
+                <div class="col-lg-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-chart-line me-2"></i> Analytics
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center mb-4">
+                                <div class="mb-3">
+                                    <i class="fas fa-user-graduate fa-3x text-primary"></i>
+                                </div>
+                                <h4>Candidate Insights</h4>
+                                <p class="text-muted">AI-powered analysis of candidate qualifications</p>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Technical Skills Match</span>
+                                    <span id="tech-match">0%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" id="tech-progress" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Experience Level</span>
+                                    <span id="exp-level">0%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" id="exp-progress" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Cultural Fit</span>
+                                    <span id="cultural-fit">0%</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" id="cultural-progress" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <i class="fas fa-history me-2"></i> Recent Activity
+                        </div>
+                        <div class="card-body">
+                            <div class="text-center py-3">
+                                <i class="fas fa-inbox fa-2x text-muted mb-3"></i>
+                                <p>No recent activity</p>
+                                <small class="text-muted">Process resumes to see activity history</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Candidates Page -->
+        <div id="candidates" class="page">
+            <div class="page-header">
+                <h2>Candidate Analysis</h2>
+                <p>Review and compare candidate profiles based on their qualifications and match score</p>
+            </div>
+            
+            <div class="row">
+                <!-- Candidate List -->
+                <div class="col-lg-5">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-list-ol me-2"></i> Ranked Candidates
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-3">
+                                <input type="text" class="form-control" id="candidate-search" placeholder="Search candidates...">
+                            </div>
+                            
+                            <div id="candidate-list">
+                                <div class="text-center py-5" id="no-candidates">
+                                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                                    <h4>No Candidates Processed</h4>
+                                    <p class="text-muted">Upload resumes to see candidate rankings</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Candidate Details -->
+                <div class="col-lg-7">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-user-tie me-2"></i> Candidate Details
+                        </div>
+                        <div class="card-body">
+                            <div id="candidate-details">
+                                <div class="text-center py-5">
+                                    <i class="fas fa-user fa-3x text-muted mb-3"></i>
+                                    <h4>Select a Candidate</h4>
+                                    <p class="text-muted">Choose a candidate from the list to view detailed information</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Chat Page -->
+        <div id="chat" class="page">
+            <div class="page-header">
+                <h2>Recruitment Assistant</h2>
+                <p>Ask questions about candidates, job requirements, and get AI-powered insights</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-8 mx-auto">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-comments me-2"></i> AI Recruitment Assistant
+                        </div>
+                        <div class="card-body">
+                            <div class="chat-container" id="chat-messages">
+                                <div class="chat-message bot-message animate-pop">
+                                    <div class="message-sender">Recruitment Assistant</div>
+                                    <div>Hello! I'm your AI recruitment assistant. I can help you analyze candidates, compare qualifications, and find the best fit for your role. How can I assist you today?</div>
+                                </div>
+                            </div>
+                            
+                            <div class="input-group mt-3">
+                                <input type="text" class="form-control" id="chat-input" placeholder="Ask a question about the candidates...">
+                                <button class="btn btn-primary" id="send-message">
+                                    <i class="fas fa-paper-plane"></i>
+                                </button>
+                            </div>
+                            
+                            <div class="mt-3">
+                                <p class="text-muted small">Try asking: "Who has the most experience with Python?" or "Which candidates would be best for a senior role?"</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Reports Page -->
+        <div id="reports" class="page">
+            <div class="page-header">
+                <h2>Recruitment Reports</h2>
+                <p>Generate and download comprehensive reports comparing candidate qualifications</p>
+            </div>
+            
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="fas fa-file-pdf me-2"></i> Generate Report
+                        </div>
+                        <div class="card-body d-flex flex-column">
+                            <div class="text-center mb-4">
+                                <i class="fas fa-chart-pie fa-3x text-primary mb-3"></i>
+                                <h4>Create New Report</h4>
+                                <p class="text-muted">Generate a comprehensive candidate comparison report</p>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">Report Title</label>
+                                <input type="text" class="form-control" id="report-title" placeholder="Enter report title">
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label">Candidates to Include</label>
+                                <select class="form-select" multiple id="candidate-select">
+                                    <!-- Will be populated dynamically -->
+                                </select>
+                            </div>
+                            
+                            <div class="mt-auto">
+                                <button class="btn btn-primary w-100" id="generate-report">
+                                    <i class="fas fa-magic me-2"></i> Generate Report
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100">
+                        <div class="card-header">
+                            <i class="fas fa-history me-2"></i> Recent Reports
+                        </div>
+                        <div class="card-body">
+                            <div id="recent-reports">
+                                <div class="text-center py-4">
+                                    <i class="fas fa-file-alt fa-2x text-muted mb-3"></i>
+                                    <p>No reports generated yet</p>
+                                    <small class="text-muted">Generate your first report to see it here</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <i class="fas fa-file-alt me-2"></i> Report Preview
+                </div>
+                <div class="card-body">
+                    <div id="report-preview">
+                        <div class="text-center py-5">
+                            <i class="fas fa-chart-bar fa-3x text-muted mb-3"></i>
+                            <h4>No Report Generated</h4>
+                            <p class="text-muted">Generate a report to preview it here</p>
+                        </div>
+                    </div>
+                    
+                    <div class="d-flex justify-content-end mt-4">
+                        <button class="btn btn-outline-primary me-2" id="download-pdf" disabled>
+                            <i class="fas fa-download me-2"></i> Download PDF
+                        </button>
+                        <button class="btn btn-primary" id="export-csv" disabled>
+                            <i class="fas fa-file-csv me-2"></i> Export to CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings Page -->
+        <div id="settings" class="page">
+            <div class="page-header">
+                <h2>System Settings</h2>
+                <p>Configure your recruitment assistant preferences and system options</p>
+            </div>
+            
+            <div class="row">
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-sliders-h me-2"></i> Processing Settings
+                        </div>
+                        <div class="card-body">
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">AI Model Selection</label>
+                                <select class="form-select" id="model-selection">
+                                    <option value="llama3-70b-8192" selected>Llama 3 (70B) - Recommended</option>
+                                    <option value="gemma2-9b-it">Gemma (9B) - Faster</option>
+                                </select>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <label class="form-label fw-bold">RAG Configuration</label>
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="rag-enable" checked>
+                                    <label class="form-check-label" for="rag-enable">Enable RAG Processing</label>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Top Candidates to Show</label>
+                                    <input type="number" class="form-control" id="top-n" value="5" min="1" max="20">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Similarity Threshold</label>
+                                    <input type="range" class="form-range" id="similarity-threshold" min="0" max="100" value="70">
+                                    <div class="d-flex justify-content-between">
+                                        <small>0%</small>
+                                        <small>70%</small>
+                                        <small>100%</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <i class="fas fa-database me-2"></i> Vector Database
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center mb-4">
+                                <div>
+                                    <h5 class="mb-0">FAISS Status</h5>
+                                </div>
+                                <span class="vector-status offline" id="db-status">Offline (0 resumes indexed)</span>
+                            </div>
+                            
+                            <div class="mb-4">
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Resume Index</span>
+                                    <span id="resume-index-count">0 resumes</span>
+                                </div>
+                                <div class="progress">
+                                    <div class="progress-bar" id="db-progress" style="width: 0%"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-primary" id="reindex-db">
+                                    <i class="fas fa-sync me-2"></i> Re-index Database
+                                </button>
+                                <button class="btn btn-outline-danger" id="clear-db">
+                                    <i class="fas fa-trash me-2"></i> Clear Database
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <i class="fas fa-bell me-2"></i> Notifications
+                        </div>
+                        <div class="card-body">
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="email-notify" checked>
+                                <label class="form-check-label" for="email-notify">Email notifications</label>
+                            </div>
+                            
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" id="report-notify" checked>
+                                <label class="form-check-label" for="report-notify">Report generation alerts</label>
+                            </div>
+                            
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="update-notify">
+                                <label class="form-check-label" for="update-notify">System update notifications</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="app-container">
+            <div class="row">
+                <div class="col-lg-4 mb-4">
+                    <h5 class="text-white">RecruitAI</h5>
+                    <p>Intelligent recruitment assistant powered by AI to help you find the best candidates faster and more efficiently.</p>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h5>Features</h5>
+                    <div class="footer-links">
+                        <a href="#">Resume Parsing</a>
+                        <a href="#">Candidate Ranking</a>
+                        <a href="#">AI Analysis</a>
+                        <a href="#">Reports</a>
+                        <a href="#">Chat Assistant</a>
+                    </div>
+                </div>
+                <div class="col-lg-2 col-md-6 mb-4">
+                    <h5>Resources</h5>
+                    <div class="footer-links">
+                        <a href="#">Documentation</a>
+                        <a href="#">API Reference</a>
+                        <a href="#">Support</a>
+                    </div>
+                </div>
+                <div class="col-lg-4 mb-4">
+                    <h5>Contact</h5>
+                    <p>Email: support@recruitai.com</p>
+                    <p>Phone: +1 (800) 123-4567</p>
+                </div>
+            </div>
+            <div class="text-center pt-4 border-top border-secondary">
+                <p class="mb-0">© 2025 RecruitAI. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js"></script>
+    <script>
+        $(document).ready(function() {
+            // Page navigation
+            $('.nav-link').click(function(e) {
+                e.preventDefault();
+                $('.nav-link').removeClass('active');
+                $(this).addClass('active');
+                
+                const page = $(this).data('page');
+                $('.page').removeClass('active');
+                $(`#${page}`).addClass('active');
+                
+                if (page === 'candidates' && processedCandidates.length > 0) {
+                    displayCandidates(processedCandidates);
+                } else if (page === 'chat') {
+                    if ($('#chat-messages .chat-message').length === 1) {
+                        addMessage("Hello! I'm your AI recruitment assistant. I can help you analyze candidates, compare qualifications, and find the best fit for your role. How can I assist you today?", 'bot');
+                    }
+                } else if (page === 'reports' && processedCandidates.length > 0) {
+                    updateCandidateSelect();
+                }
+            });
+
+            // Initialize file upload
+            $('#browse-btn').click(function() {
+                $('#resume-upload').click();
+            });
+            
+            // Track uploaded files
+            let uploadedFiles = [];
+            let processedCandidates = [];
+            
+            $('#resume-upload').change(function() {
+                const newFiles = Array.from(this.files);
+                newFiles.forEach(file => {
+                    if (!uploadedFiles.some(f => f.name === file.name && f.size === file.size)) {
+                        uploadedFiles.push(file);
+                    }
+                });
+                $('#resume-count').text(uploadedFiles.length);
+                $('#resume-progress').css('width', '0%');
+                updateAnalytics();
+                this.value = ''; // Clear input to allow re-selection
+            });
+            
+            // Process resumes button
+            $('#process-resumes').click(function() {
+                const jobDesc = $('#job-description').val().trim();
+                if (!jobDesc) {
+                    showAlert('warning', 'Please enter a job description');
+                    return;
+                }
+                
+                if (uploadedFiles.length === 0) {
+                    showAlert('warning', 'Please upload at least one resume');
+                    return;
+                }
+                
+                const btn = $(this);
+                btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Processing...');
+                btn.prop('disabled', true);
+                
+                const ragMode = $('#rag-toggle').prop('checked');
+                const topN = $('#top-n').val() || 5;
+                
+                const formData = new FormData();
+                formData.append('job_description', jobDesc);
+                formData.append('rag_mode', ragMode);
+                formData.append('top_n', topN);
+                
+                uploadedFiles.forEach(file => {
+                    formData.append('resumes', file);
+                });
+                
+                // Call backend API
+                fetch('/api/process_resumes', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to process resumes: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    processedCandidates = data.map(c => ({ ...c, id: Math.random().toString(36).substr(2, 9) }));
+                    displayCandidates(processedCandidates);
+                    updateVectorDBStatus();
+                    updateAnalytics();
+                    updateCandidateSelect();
+                    showAlert('success', `${processedCandidates.length} resumes processed successfully!`);
+                })
+                .catch(error => {
+                    console.error('Process resumes error:', error);
+                    showAlert('danger', `Error processing resumes: ${error.message}`);
+                })
+                .finally(() => {
+                    btn.html('<i class="fas fa-cogs me-2"></i>Process Resumes');
+                    btn.prop('disabled', false);
+                    $('#resume-progress').css('width', '100%');
+                });
+            });
+            
+            // Initialize Vector DB button
+            $('#init-db').click(function() {
+                const btn = $(this);
+                btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Initializing...');
+                
+                fetch('/api/init_vector_db', {
+                    method: 'POST'
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to initialize vector DB: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    showAlert('success', 'Vector database initialized successfully!');
+                    updateVectorDBStatus();
+                })
+                .catch(error => {
+                    console.error('Initialize vector DB error:', error);
+                    showAlert('danger', `Failed to initialize vector database: ${error.message}`);
+                })
+                .finally(() => {
+                    btn.html('<i class="fas fa-cogs me-2"></i>Initialize Vector DB');
+                });
+            });
+            
+            // Update Vector DB status
+            function updateVectorDBStatus() {
+                fetch('/api/vector_db_status')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch vector DB status: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    const status = data.initialized ? 'Online' : 'Offline';
+                    const statusClass = data.initialized ? 'online' : 'offline';
+                    const count = data.resume_count || 0;
+                    
+                    $('#vector-status').text(`${status} (${count} resumes indexed)`);
+                    $('#vector-status').removeClass('online offline').addClass(statusClass);
+                    $('#db-status').text(`${status} (${count} resumes indexed)`);
+                    $('#db-status').removeClass('online offline').addClass(statusClass);
+                    $('#resume-index-count').text(`${count} resumes`);
+                    $('#db-progress').css('width', `${Math.min(count * 10, 100)}%`);
+                })
+                .catch(error => {
+                    console.error('Vector DB status error:', error);
+                    $('#vector-status').text('Offline (Error)');
+                    $('#db-status').text('Offline (Error)');
+                });
+            }
+            
+            // Display candidates
+            function displayCandidates(candidates) {
+                const container = $('#candidate-list');
+                container.empty();
+                
+                if (!candidates || candidates.length === 0) {
+                    container.html(`
+                        <div class="text-center py-5">
+                            <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                            <h4>No Candidates Processed</h4>
+                            <p class="text-muted">Upload resumes to see candidate rankings</p>
+                        </div>
+                    `);
+                    return;
+                }
+                
+                candidates.forEach((candidate, index) => {
+                    const score = candidate.score || 0;
+                    const progressClass = score > 90 ? 'bg-success' : 
+                                         score > 75 ? 'bg-primary' : 
+                                         score > 60 ? 'bg-warning' : 'bg-danger';
+                    
+                    const card = $(`
+                        <div class="candidate-card" data-index="${index}">
+                            <div class="d-flex align-items-center">
+                                <div class="candidate-image">
+                                    ${candidate.name ? candidate.name.charAt(0).toUpperCase() : '?'}
+                                </div>
+                                <div class="candidate-details flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-center">
+                                        <h5 class="mb-0">${candidate.name || 'Unnamed Candidate'}</h5>
+                                        <div class="candidate-score">${score}%</div>
+                                    </div>
+                                    <div class="text-muted mb-2">${candidate.filename || 'Unknown'}</div>
+                                    <div class="d-flex flex-wrap mb-2">
+                                        ${candidate.skills && candidate.skills.slice(0, 3).map(skill => 
+                                            `<span class="skill-badge">${skill}</span>`
+                                        ).join('') || ''}
+                                    </div>
+                                    <div class="progress">
+                                        <div class="progress-bar ${progressClass}" role="progressbar" style="width: ${score}%"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    `);
+                    
+                    card.click(function() {
+                        $('.candidate-card').removeClass('active');
+                        $(this).addClass('active');
+                        showCandidateDetails(candidate);
+                    });
+                    
+                    container.append(card);
+                });
+                
+                // Show first candidate by default
+                if (candidates.length > 0) {
+                    $('.candidate-card').first().click();
+                }
+            }
+            
+            // Search candidates
+            $('#candidate-search').on('input', function() {
+                const searchTerm = $(this).val().toLowerCase();
+                const filteredCandidates = processedCandidates.filter(c => 
+                    (c.name && c.name.toLowerCase().includes(searchTerm)) ||
+                    (c.filename && c.filename.toLowerCase().includes(searchTerm))
+                );
+                displayCandidates(filteredCandidates);
+            });
+            
+            // Show candidate details
+            function showCandidateDetails(candidate) {
+                const container = $('#candidate-details');
+                container.empty();
+                
+                const details = $(`
+                    <div>
+                        <div class="d-flex justify-content-between align-items-center mb-4">
+                            <div>
+                                <h3>${candidate.name || 'Unnamed Candidate'}</h3>
+                                ${candidate.email ? `<p class="text-muted">${candidate.email}</p>` : ''}
+                                ${candidate.phone ? `<p class="text-muted">${candidate.phone}</p>` : ''}
+                            </div>
+                            <div class="candidate-score display-4">${candidate.score || 0}%</div>
+                        </div>
+                        
+                        ${candidate.strengths || candidate.red_flags ? `
+                        <div class="row mb-4">
+                            ${candidate.strengths ? `
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-star me-2"></i>Strengths</h5>
+                                <div class="d-flex flex-wrap mt-3">
+                                    ${candidate.strengths.map(strength => 
+                                        `<span class="skill-badge strength-badge">${strength}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                            
+                            ${candidate.red_flags ? `
+                            <div class="col-md-6">
+                                <h5><i class="fas fa-exclamation-triangle me-2"></i>Red Flags</h5>
+                                <div class="d-flex flex-wrap mt-3">
+                                    ${candidate.red_flags.map(flag => 
+                                        `<span class="skill-badge warning-badge">${flag}</span>`
+                                    ).join('')}
+                                </div>
+                            </div>
+                            ` : ''}
+                        </div>
+                        ` : ''}
+                        
+                        ${candidate.experience ? `
+                        <div class="mb-4">
+                            <h5><i class="fas fa-briefcase me-2"></i>Experience</h5>
+                            ${candidate.experience.map(exp => `
+                                <div class="mb-3">
+                                    ${exp.title ? `<div class="d-flex justify-content-between">
+                                        <strong>${exp.title}</strong>
+                                        ${exp.duration ? `<span class="text-muted">${exp.duration}</span>` : ''}
+                                    </div>` : ''}
+                                    ${exp.company ? `<div class="text-primary">${exp.company}</div>` : ''}
+                                    ${exp.description ? `<p class="text-muted mt-1">${exp.description}</p>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                        
+                        ${candidate.education ? `
+                        <div class="mb-4">
+                            <h5><i class="fas fa-graduation-cap me-2"></i>Education</h5>
+                            ${candidate.education.map(edu => `
+                                <div class="mb-3">
+                                    ${edu.degree ? `<div class="d-flex justify-content-between">
+                                        <strong>${edu.degree}</strong>
+                                        ${edu.year ? `<span class="text-muted">${edu.year}</span>` : ''}
+                                    </div>` : ''}
+                                    ${edu.institution ? `<div>${edu.institution}</div>` : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                        ` : ''}
+                        
+                        ${candidate.skills ? `
+                        <div>
+                            <h5><i class="fas fa-certificate me-2"></i>Skills</h5>
+                            <div class="d-flex flex-wrap mt-3">
+                                ${candidate.skills.map(skill => 
+                                    `<span class="skill-badge">${skill}</span>`
+                                ).join('')}
+                            </div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `);
+                
+                container.append(details);
+            }
+            
+            // Chat functionality
+            $('#send-message').click(sendMessage);
+            $('#chat-input').keypress(function(e) {
+                if (e.which === 13) {
+                    sendMessage();
+                }
+            });
+            
+            function sendMessage() {
+                const input = $('#chat-input');
+                const message = input.val().trim();
+                
+                if (!message) return;
+                
+                addMessage(message, 'user');
+                input.val('');
+                
+                const typingIndicator = `
+                    <div class="chat-message bot-message">
+                        <div class="message-sender">Recruitment Assistant</div>
+                        <div><i class="fas fa-circle fa-xs"></i> <i class="fas fa-circle fa-xs"></i> <i class="fas fa-circle fa-xs"></i></div>
+                    </div>
+                `;
+                $('#chat-messages').append(typingIndicator);
+                $('#chat-messages').scrollTop($('#chat-messages')[0].scrollHeight);
+                
+                const jobDesc = $('#job-description').val() || '';
+                
+                fetch('/api/ask_question', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        query: message,
+                        candidates: processedCandidates,
+                        job_description: jobDesc
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to get response: ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    $('.chat-message').last().remove();
+                    if (data.response) {
+                        addMessage(data.response, 'bot');
+                    } else if (data.error) {
+                        addMessage(`Error: ${data.error}`, 'bot');
+                    } else {
+                        addMessage("I couldn't process your request. Please try again.", 'bot');
+                    }
+                })
+                .catch(error => {
+                    console.error('Chat error:', error);
+                    $('.chat-message').last().remove();
+                    addMessage("Sorry, I encountered an error. Please try again.", 'bot');
+                });
+            }
+            
+            function addMessage(text, sender) {
+                const messages = $('#chat-messages');
+                const message = $(`
+                    <div class="chat-message ${sender}-message animate-pop">
+                        <div class="message-sender">${sender === 'user' ? 'You' : 'Recruitment Assistant'}</div>
+                        <div>${text}</div>
+                    </div>
+                `);
+                
+                messages.append(message);
+                messages.scrollTop(messages[0].scrollHeight);
+            }
+            $('#generate-report').click(function() {
+                if (processedCandidates.length === 0) {
+                    showAlert('warning', 'Please process resumes before generating a report');
+                    return;
+                }
+                const jobDesc = $('#job-description').val().trim() || '';
+                const reportTitle = $('#report-title').val().trim() || 'Recruitment Report';
+                const selectedCandidates = $('#candidate-select').val() || processedCandidates.map(c => c.id);
+                // Validate and log the data being sent
+                const filteredCandidates = processedCandidates.filter(c => selectedCandidates.includes(c.id));
+                console.log('Sending to generate_report:', {
+                    candidates: filteredCandidates,
+                    job_description: jobDesc
+                });
+                if (filteredCandidates.length === 0) {
+                    showAlert('warning', 'No candidates selected for the report');
+                    return;
+                }
+                if (!jobDesc) {
+                    showAlert('warning', 'Please provide a job description');
+                    return;
+                }
+                const btn = $(this);
+                btn.html('<i class="fas fa-spinner fa-spin me-2"></i>Generating...');
+                fetch('/api/generate_report', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        candidates: filteredCandidates,
+                        job_description: jobDesc
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status} - ${response.statusText}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('Report response:', data);
+                    if (data.report) {
+                        displayReport(data.report, reportTitle);
+                        showAlert('success', 'Report generated successfully!');
+                    } 
+                    else if (data.error) {
+                        throw new Error(data.error);
+                    } 
+                    else {
+                        throw new Error('Unexpected response format');
+                    }
+                })
+                .catch(error => {
+                    console.error('Generate report error:', error);
+                    showAlert('danger', `Error generating report: ${error.message}`);
+                })
+                .finally(() => {
+                    btn.html('<i class="fas fa-magic me-2"></i>Generate Report');
+                });
+            });
+
+                
+            // Display report
+            function displayReport(markdown, title) {
+                const reportPreview = $('#report-preview');
+                reportPreview.html(`
+                    <div class="report-container">
+                        <h3 class="mb-4">${title}</h3>
+                        <div>${marked.parse(markdown)}</div>
+                    </div>
+                `);
+                
+                $('#download-pdf').prop('disabled', false);
+                $('#export-csv').prop('disabled', false);
+            }
+            
+            // Update candidate select for reports
+            function updateCandidateSelect() {
+                const select = $('#candidate-select');
+                select.empty();
+                processedCandidates.forEach(candidate => {
+                    select.append(`<option value="${candidate.id}">${candidate.name || 'Unnamed Candidate'} (${candidate.score || 0}%)</option>`);
+                });
+            }
+            
+            // Show alert message
+            function showAlert(type, message) {
+                const alert = $(`
+                    <div class="alert alert-${type} alert-dismissible fade show mt-3" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                `);
+                
+                $('.page.active').prepend(alert);
+                
+                setTimeout(() => {
+                    alert.alert('close');
+                }, 5000);
+            }
+            
+            // Update analytics based on processed candidates
+            function updateAnalytics() {
+                if (processedCandidates.length > 0) {
+                    const avgTechMatch = processedCandidates.reduce((sum, c) => sum + (c.score || 0), 0) / processedCandidates.length;
+                    const avgExpLevel = processedCandidates.reduce((sum, c) => sum + (c.experience?.length || 0), 0) / processedCandidates.length * 10;
+                    const avgCulturalFit = 50; // Placeholder, should be calculated based on cultural fit data
+
+                    $('#tech-match').text(`${avgTechMatch.toFixed(1)}%`);
+                    $('#tech-progress').css('width', `${avgTechMatch}%`);
+                    $('#exp-level').text(`${avgExpLevel.toFixed(1)}%`);
+                    $('#exp-progress').css('width', `${avgExpLevel}%`);
+                    $('#cultural-fit').text(`${avgCulturalFit}%`);
+                    $('#cultural-progress').css('width', `${avgCulturalFit}%`);
+                }
+            }
+            
+            // Initialize vector DB status
+            updateVectorDBStatus();
+        });
+    </script>
