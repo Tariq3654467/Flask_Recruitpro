@@ -13,16 +13,29 @@ import io
 import secrets
 import time
 import logging
+import smtplib
+from email.mime.text import MIMEText
+from dotenv import load_dotenv
+import sqlite3
+from urllib.parse import quote
+from datetime import datetime, timedelta
 
 app = Flask(__name__, static_folder=os.path.abspath('static'))
-app.secret_key = secrets.token_hex(16)  # For session management
+app.secret_key = secrets.token_hex(16)
 
 # Configure logging
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Load environment variables
+load_dotenv()
+
+# SMTP Configuration
+SMTP_SERVER = os.getenv("SMTP_SERVER", "smtp.gmail.com")
+SMTP_PORT = int(os.getenv("SMTP_PORT", 587))
+
 # Initialize Groq client
-client = Groq(api_key="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")
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 # Initialize embedding model
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
@@ -31,8 +44,24 @@ embedding_size = embedding_model.get_sentence_embedding_dimension()
 # Global dictionary to store vector stores by session ID
 vector_stores = {}
 
+# Database setup
+def get_db_connection():
+    conn = sqlite3.connect('interviews.db', check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def init_db():
+    with get_db_connection() as conn:
+        # Drop existing table (for development) and recreate with correct schema
+        conn.execute('DROP TABLE IF EXISTS interviews')
+        conn.execute('''CREATE TABLE interviews
+                        (id TEXT PRIMARY KEY, candidate_email TEXT, candidate_name TEXT, questions TEXT,
+                         responses TEXT, agent_questions TEXT, job_desc TEXT, summary TEXT, created_at TIMESTAMP)''')
+        conn.commit()
+
+init_db()
+
 def get_vector_store():
-    """Get or create vector store for current session"""
     session_id = session.get('id')
     if not session_id:
         session_id = str(uuid.uuid4())
@@ -43,7 +72,6 @@ def get_vector_store():
             'resume_count': 0,
             'last_processed': 0
         }
-    
     if session_id not in vector_stores:
         vector_stores[session_id] = {
             'index': faiss.IndexFlatIP(embedding_size),
@@ -51,10 +79,9 @@ def get_vector_store():
             'resume_count': 0,
             'last_processed': 0
         }
-    
     return vector_stores[session_id]
 
-# Helper Functions
+# Helper Functions (unchanged)
 def extract_text_from_pdf(file):
     text = ""
     try:
@@ -78,13 +105,13 @@ def extract_text_from_docx(file):
 
 def extract_resume_data(text):
     prompt = f"""
-    Extract the following information from the resume below in JSON format with keys: 
-    "name", "email", "phone", "skills" (list), "experience" (list of dicts with "title", "company", "duration", "description"), 
+    Extract the following information from the resume below in JSON format with keys:
+    "name", "email", "phone", "skills" (list), "experience" (list of dicts with "title", "company", "duration", "description"),
     "education" (list of dicts with "degree", "institution", "year"), "certifications" (list), "summary".
-    
+
     Resume:
     {text[:15000]}
-    
+
     Return ONLY the JSON object, nothing else.
     """
     try:
@@ -107,10 +134,10 @@ def analyze_candidate_fit(candidate_data, job_description):
     - strengths (list)
     - red_flags (list)
     - justification
-    
+
     Candidate: {json.dumps(candidate_data)}
     Job Description: {job_description}
-    
+
     Return ONLY the JSON object, nothing else.
     """
     try:
@@ -129,7 +156,6 @@ def analyze_candidate_fit(candidate_data, job_description):
 def generate_report(candidates, job_desc):
     if not candidates or not job_desc:
         return "No candidates or job description provided.", False
-    
     serializable_candidates = [
         {k: v for k, v in c.items() if isinstance(v, (str, int, float, list, dict))}
         for c in candidates[:10]
@@ -137,19 +163,19 @@ def generate_report(candidates, job_desc):
     prompt = f"""
     Generate a comprehensive recruitment report comparing candidates for a job role.
     Include candidate rankings, strengths, weaknesses, and recommendations.
-    
+
     Job Description:
     {job_desc}
-    
+
     Candidates:
     {json.dumps(serializable_candidates)}
-    
+
     Structure your report with:
     1. Executive Summary
     2. Candidate Comparison (table format)
     3. Detailed Analysis per Candidate
     4. Final Recommendations
-    
+
     Return the report in Markdown format.
     """
     try:
@@ -167,22 +193,21 @@ def generate_report(candidates, job_desc):
 def answer_recruitment_question(query, candidates, job_desc):
     if not query or not candidates or not job_desc:
         return "Query, candidates, and job description are required.", False
-    
     serializable_candidates = [
         {k: v for k, v in c.items() if isinstance(v, (str, int, float, list, dict))}
         for c in candidates[:10]
     ]
     prompt = f"""
     You are an expert recruitment assistant. Answer the following question based on the candidates and job description.
-    
+
     Question: {query}
-    
+
     Job Description:
     {job_desc}
-    
+
     Candidates:
     {json.dumps(serializable_candidates)}
-    
+
     Provide a concise, accurate answer with relevant details.
     """
     try:
@@ -196,6 +221,210 @@ def answer_recruitment_question(query, candidates, job_desc):
     except Exception as e:
         logger.error(f"Error answering question: {str(e)}")
         return str(e), False
+
+def generate_job_description(key_terms):
+    prompt = f"""
+    Generate a professional job description based on the following key terms. Include sections for Job Title, Overview, Responsibilities, Qualifications, and Preferred Skills.
+
+    Key Terms: {', '.join(key_terms)}
+
+    Return the job description in Markdown format.
+    """
+    try:
+        chat_completion = client.chat.completions.create(
+            messages=[{"role": "user", "content": prompt}],
+            model="llama3-70b-8192",
+            temperature=0.4,
+            max_tokens=2000
+        )
+        return chat_completion.choices[0].message.content, True
+    except Exception as e:
+        logger.error(f"Error generating job description: {str(e)}")
+        return str(e), False
+
+def generate_follow_up_question(interview_id, candidate_response):
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return "Invalid interview session", False
+        questions = json.loads(interview['questions'])
+        responses = json.loads(interview['responses'])
+        job_desc = interview['job_desc']
+        candidate_name = interview['candidate_name']
+        prompt = f"""
+        You are an expert recruitment interviewer. Based on the candidate's latest response, generate a relevant follow-up question to assess their suitability for the role. The question should be specific, relevant to the job description, and aim to elicit detailed insights into the candidate's skills, experience, or fit.
+
+        Candidate Name: {candidate_name}
+        Job Description: {job_desc}
+        Previous Questions: {json.dumps(questions)}
+        Previous Responses: {json.dumps(responses)}
+        Latest Candidate Response: {candidate_response}
+
+        Return ONLY the follow-up question as a string.
+        """
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="gemma2-9b-it",
+                temperature=0.3,
+                max_tokens=200
+            )
+            question = chat_completion.choices[0].message.content.strip()
+            questions.append(question)
+            agent_questions = json.loads(interview['agent_questions'])
+            agent_questions.append(question)
+            conn.execute('UPDATE interviews SET questions = ?, agent_questions = ? WHERE id = ?',
+                        (json.dumps(questions), json.dumps(agent_questions), interview_id))
+            conn.commit()
+            return question, True
+        except Exception as e:
+            logger.error(f"Error generating follow-up question: {str(e)}")
+            return str(e), False
+
+def generate_interview_summary(interview_id):
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return "Invalid interview session", False
+        candidate_name = interview['candidate_name']
+        job_desc = interview['job_desc']
+        questions = json.loads(interview['questions'])
+        responses = json.loads(interview['responses'])
+        prompt = f"""
+        You are an expert recruitment assistant. Generate a summary of the candidate's interview for the hiring team. Include:
+        - Candidate Name
+        - Overview of Performance
+        - Key Strengths
+        - Areas for Improvement
+        - Suitability for the Role
+        - Recommendation
+
+        Job Description: {job_desc}
+        Questions Asked: {json.dumps(questions)}
+        Candidate Responses: {json.dumps(responses)}
+
+        Return the summary in Markdown format.
+        """
+        try:
+            chat_completion = client.chat.completions.create(
+                messages=[{"role": "user", "content": prompt}],
+                model="llama3-70b-8192",
+                temperature=0.4,
+                max_tokens=2000
+            )
+            summary = chat_completion.choices[0].message.content
+            conn.execute('UPDATE interviews SET summary = ? WHERE id = ?', (summary, interview_id))
+            conn.commit()
+            return summary, True
+        except Exception as e:
+            logger.error(f"Error generating interview summary: {str(e)}")
+            return str(e), False
+
+def send_interview_summary(recipient_email, candidate_name, summary, sender_email=None, sender_password=None):
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    sender_email = sender_email or email_config.get('sender_email')
+    sender_password = sender_password or email_config.get('sender_password')
+    try:
+        if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
+            logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
+            return False
+        msg = MIMEText(f"Dear Hiring Team,\n\nPlease find the interview summary for {candidate_name} below:\n\n{summary}\n\nBest regards,\nRecruitAI")
+        msg['Subject'] = f"Interview Summary for {candidate_name}"
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        logger.info(f"Interview summary email sent to {recipient_email} for {candidate_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send interview summary to {recipient_email}: {str(e)}")
+        return False
+
+def send_congratulatory_email(recipient_email, candidate_name, sender_email=None, sender_password=None):
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    sender_email = sender_email or email_config.get('sender_email')
+    sender_password = sender_password or email_config.get('sender_password')
+    try:
+        if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
+            logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
+            return False
+        msg = MIMEText(f"""Dear {candidate_name},\n\nWe are pleased to inform you that you have been shortlisted for the position at our organization. Congratulations! We were impressed with your background and believe you will make a valuable addition to our team. Please confirm your acceptance of this offer by replying to this email at your earliest convenience.\n\nShould you have any questions or require further information, feel free to reach out.\n\nWe look forward to welcoming you aboard.\nBest regards,\nThe Hiring Team""")
+        msg['Subject'] = f"Congratulations {candidate_name} - Selection Notification"
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        logger.info(f"Congratulatory email sent to {recipient_email} from {sender_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send congratulatory email to {recipient_email} from {sender_email}: {str(e)}")
+        return False
+
+def send_feedback_email(recipient_email, candidate_name, feedback, sender_email=None, sender_password=None):
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    sender_email = sender_email or email_config.get('sender_email')
+    sender_password = sender_password or email_config.get('sender_password')
+    try:
+        if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
+            logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
+            return False
+        if not feedback or not isinstance(feedback, str):
+            feedback = "No specific feedback available. Consider improving your skills or experience based on the job description."
+            logger.warning(f"Empty or invalid feedback for {candidate_name}, using default: {feedback}")
+        msg = MIMEText(f"Dear {candidate_name},\n\nThank you for your application. Unfortunately, you have not been selected for this position. Below are some suggestions for improvement or reasons for non-selection:\n\n{feedback}\n\nWe encourage you to apply again in the future.\nBest regards,\nThe Hiring Team")
+        msg['Subject'] = f"Feedback - Application Status for {candidate_name}"
+        msg['From'] = sender_email
+        msg['To'] = recipient_email
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        logger.info(f"Feedback email sent to {recipient_email} from {sender_email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send feedback email to {recipient_email} from {sender_email}: {str(e)}")
+        return False
+
+def send_interview_schedule_email(recipient_email, candidate_name, schedule, interview_id, sender_email=None, sender_password=None):
+    email_config = session.get('email_config') or {
+        'sender_email': os.getenv('SENDER_EMAIL'),
+        'sender_password': os.getenv('SENDER_PASSWORD')
+    }
+    sender_email = sender_email or email_config.get('sender_email')
+    sender_password = sender_password or email_config.get('sender_password')
+    
+    if not all([recipient_email, sender_email, sender_password, interview_id, candidate_name]):
+        logger.error(f"Missing required parameters: recipient_email={recipient_email}, sender_email={sender_email}, interview_id={interview_id}, candidate_name={candidate_name}")
+        return False
+    if '@' not in recipient_email or '@' not in sender_email:
+        logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
+        return False
+
+    base_url = os.getenv('BASE_URL', 'http://localhost:5000')
+    website_link = f"{base_url}/candidate_interview?interview_id={quote(interview_id)}&candidate_name={quote(candidate_name)}"
+    
+    schedule_text = schedule or f"Interview scheduled for {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + 3600))} PKT via chat at {website_link}."
+    
+    email_body = f"""Dear {candidate_name},\n\nCongratulations on being shortlisted for the position! We are excited to invite you for an interview. Details are as follows:\n\n{schedule_text}\n\nPlease join via the link above. Best regards,\nThe Hiring Team"""
+    msg = MIMEText(email_body)
+    msg['Subject'] = f"Interview Schedule for {candidate_name}"
+    msg['From'] = sender_email
+    msg['To'] = recipient_email
+
+    try:
+        with smtplib.SMTP(SMTP_SERVER, SMTP_PORT) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(msg)
+        logger.info(f"Interview schedule email sent to {recipient_email} with link: {website_link}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send interview schedule email to {recipient_email} from {sender_email}: {str(e)}")
+        return False
 
 # API Endpoints
 @app.route('/')
@@ -234,39 +463,31 @@ def vector_db_status():
 def process_resumes():
     if 'job_description' not in request.form or not request.files.getlist('resumes'):
         return jsonify({"error": "Job description and resumes are required"}), 400
-    
     job_desc = request.form['job_description']
     rag_mode = request.form.get('rag_mode', 'false').lower() == 'true'
-    top_n = int(request.form.get('top_n', 5))
     processed_candidates = []
     vector_store = get_vector_store()
-    
-    # Reset vector DB if it's been more than 1 hour since last use
     if time.time() - vector_store.get('last_processed', 0) > 3600:
         vector_store['index'] = faiss.IndexFlatIP(embedding_size)
         vector_store['metadata'] = []
         vector_store['resume_count'] = 0
-    
     vector_store['last_processed'] = time.time()
-    
     if rag_mode:
         embeddings = []
         metadata = []
-        
         for file in request.files.getlist('resumes'):
             if file.mimetype == "application/pdf":
                 text, success = extract_text_from_pdf(file)
-            else:
+            elif file.mimetype in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
                 text, success = extract_text_from_docx(file)
-                
+            else:
+                logger.warning(f"Unsupported file type: {file.mimetype}")
+                continue
             if not success:
                 continue
-                
-            # Check if this resume is already in the system
             existing = next((m for m in vector_store['metadata'] if m['filename'] == file.filename and m['text'] == text[:10000]), None)
             if existing:
                 continue
-                
             embedding = embedding_model.encode(text)
             embeddings.append(embedding)
             metadata.append({
@@ -275,22 +496,15 @@ def process_resumes():
                 "id": str(uuid.uuid4())
             })
             vector_store['resume_count'] += 1
-        
         if embeddings:
             embeddings_array = np.array(embeddings).astype('float32')
-            
-            # Update vector store
             if vector_store['index'] is None:
                 vector_store['index'] = faiss.IndexFlatIP(embedding_size)
-            
             vector_store['index'].add(embeddings_array)
             vector_store['metadata'].extend(metadata)
-            
-            # Perform similarity search
             query_embedding = embedding_model.encode([job_desc])
             query_embedding = np.array(query_embedding).astype('float32')
-            distances, indices = vector_store['index'].search(query_embedding, min(top_n, vector_store['index'].ntotal))
-            
+            distances, indices = vector_store['index'].search(query_embedding, vector_store['index'].ntotal)
             for idx, distance in zip(indices[0], distances[0]):
                 if idx < 0 or idx >= len(vector_store['metadata']):
                     continue
@@ -311,12 +525,13 @@ def process_resumes():
         for file in request.files.getlist('resumes'):
             if file.mimetype == "application/pdf":
                 text, success = extract_text_from_pdf(file)
-            else:
+            elif file.mimetype in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
                 text, success = extract_text_from_docx(file)
-                
+            else:
+                logger.warning(f"Unsupported file type: {file.mimetype}")
+                continue
             if not success:
                 continue
-                
             parsed_data, success = extract_resume_data(text)
             if success:
                 analysis_data, success = analyze_candidate_fit(parsed_data, job_desc)
@@ -328,7 +543,6 @@ def process_resumes():
                         "id": str(uuid.uuid4())
                     }
                     processed_candidates.append(candidate_data)
-    
     processed_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
     return jsonify(processed_candidates)
 
@@ -337,16 +551,13 @@ def generate_report_endpoint():
     data = request.get_json()
     candidates = data.get('candidates', [])
     job_desc = data.get('job_description', '')
-    
     logger.debug(f"Received generate_report request: candidates={len(candidates)}, job_desc={job_desc[:100]}...")
-    
     if not candidates:
         logger.error("No candidates provided")
         return jsonify({"error": "No candidates provided"}), 400
     if not job_desc:
         logger.error("No job description provided")
         return jsonify({"error": "No job description provided"}), 400
-    
     report, success = generate_report(candidates, job_desc)
     if success:
         logger.debug("Report generated successfully")
@@ -360,10 +571,8 @@ def ask_question():
     query = data.get('query', '')
     candidates = data.get('candidates', [])
     job_desc = data.get('job_description', '')
-    
     if not query or not candidates or not job_desc:
         return jsonify({"error": "Query, candidates, and job description are required"}), 400
-    
     response, success = answer_recruitment_question(query, candidates, job_desc)
     if success:
         return jsonify({"response": response})
@@ -373,10 +582,8 @@ def ask_question():
 def export_csv():
     data = request.get_json()
     candidates = data.get('candidates', [])
-    
     if not candidates:
         return jsonify({"error": "No candidates data"}), 400
-        
     export_data = []
     for candidate in candidates:
         export_data.append({
@@ -390,7 +597,6 @@ def export_csv():
             "Strengths": "; ".join(candidate.get('strengths', [])),
             "Red Flags": "; ".join(candidate.get('red_flags', []))
         })
-    
     df = pd.DataFrame(export_data)
     output = io.StringIO()
     df.to_csv(output, index=False)
@@ -402,5 +608,268 @@ def export_csv():
         download_name='candidate_ranking.csv'
     )
 
+@app.route('/api/send_congratulatory_email', methods=['POST'])
+def send_congratulatory_email_endpoint():
+    data = request.get_json()
+    logger.debug(f"Received send_congratulatory_email request: {data}")
+    selected_candidates = data.get('selected_candidates', [])
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    if not selected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+        logger.error("Selected candidates or email credentials are missing")
+        return jsonify({"error": "Selected candidates or email credentials are required"}), 400
+    success_count = 0
+    for candidate in selected_candidates:
+        name = candidate.get('name', 'Candidate')
+        email = candidate.get('email')
+        if email and send_congratulatory_email(email, name):
+            success_count += 1
+    logger.info(f"Sent {success_count} congratulatory emails out of {len(selected_candidates)}")
+    return jsonify({
+        "status": "Emails sent",
+        "success_count": success_count,
+        "total": len(selected_candidates)
+    })
+
+@app.route('/api/send_feedback_email', methods=['POST'])
+def send_feedback_email_endpoint():
+    data = request.get_json()
+    logger.debug(f"Received send_feedback_email request: {data}")
+    unselected_candidates = data.get('unselected_candidates', [])
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    if not unselected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+        logger.error("Unselected candidates or email credentials are missing")
+        return jsonify({"error": "Unselected candidates or email credentials are required"}), 400
+    success_count = 0
+    for candidate in unselected_candidates:
+        name = candidate.get('name', 'Candidate')
+        email = candidate.get('email')
+        red_flags = candidate.get('red_flags', [])
+        skills = candidate.get('skills', [])
+        feedback_items = []
+        if red_flags:
+            feedback_items.extend(red_flags)
+        if skills:
+            feedback_items.append(f"Consider enhancing skills in: {', '.join(skills)}")
+        feedback = "\n".join(feedback_items) if feedback_items else "No specific feedback available. Consider improving your skills or experience based on the job description."
+        if email and send_feedback_email(email, name, feedback):
+            success_count += 1
+        else:
+            logger.warning(f"Skipped sending feedback email to {name} due to invalid email or failure")
+    logger.info(f"Sent {success_count} feedback emails out of {len(unselected_candidates)}")
+    return jsonify({
+        "status": "Emails sent",
+        "success_count": success_count,
+        "total": len(unselected_candidates)
+    })
+
+@app.route('/api/send_interview_schedule', methods=['POST'])
+def send_interview_schedule_endpoint():
+    data = request.get_json()
+    logger.debug(f"Received send_interview_schedule request: {data}")
+    selected_candidates = data.get('selected_candidates', [])
+    schedule = data.get('schedule', "")
+    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
+    if not selected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+        logger.error("Selected candidates or email credentials are missing")
+        return jsonify({"error": "Selected candidates or email credentials are required"}), 400
+    success_count = 0
+    for candidate in selected_candidates:
+        name = candidate.get('name', 'Candidate')
+        email = candidate.get('email')
+        interview_id = str(uuid.uuid4())
+        with get_db_connection() as conn:
+            conn.execute('INSERT INTO interviews (id, candidate_email, candidate_name, questions, responses, agent_questions, job_desc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                        (interview_id, email, name, json.dumps(["Please introduce yourself and tell us about your experience."]), json.dumps([]), json.dumps([]), data.get('job_description', ''), time.strftime('%Y-%m-%d %H:%M:%S')))
+            conn.commit()
+        if email and send_interview_schedule_email(email, name, schedule, interview_id):
+            success_count += 1
+    logger.info(f"Sent {success_count} interview schedule emails out of {len(selected_candidates)}")
+    return jsonify({
+        "status": "Emails sent",
+        "success_count": success_count,
+        "total": len(selected_candidates)
+    })
+
+@app.route('/api/generate_job_description', methods=['POST'])
+def generate_job_description_endpoint():
+    data = request.get_json()
+    logger.debug(f"Received generate_job_description request: {data}")
+    key_terms = data.get('key_terms', [])
+    if not key_terms or not isinstance(key_terms, list):
+        logger.error("Key terms are required as a list")
+        return jsonify({"error": "Key terms are required as a list"}), 400
+    job_description, success = generate_job_description(key_terms)
+    if success:
+        logger.debug("Job description generated successfully")
+        return jsonify({"job_description": job_description})
+    logger.error(f"Failed to generate job description: {job_description}")
+    return jsonify({"error": f"Failed to generate job description: {job_description}"}), 500
+
+@app.route('/api/set_email_config', methods=['POST'])
+def set_email_config():
+    data = request.get_json()
+    sender_email = data.get('sender_email')
+    sender_password = data.get('sender_password')
+    if not sender_email or '@' not in sender_email or not sender_password:
+        return jsonify({"error": "Valid sender email and password are required"}), 400
+    session['email_config'] = {
+        'sender_email': sender_email,
+        'sender_password': sender_password
+    }
+    logger.info(f"Email configuration set for session: {sender_email}")
+    return jsonify({"status": "Email configuration saved"})
+
+@app.route('/api/start_interview', methods=['POST'])
+def start_interview():
+    data = request.get_json()
+    candidate_email = data.get('candidate_email')
+    candidate_name = data.get('candidate_name')
+    job_desc = data.get('job_description', '')
+    if not candidate_email or not candidate_name:
+        return jsonify({"error": "Candidate email and name are required"}), 400
+    interview_id = str(uuid.uuid4())
+    with get_db_connection() as conn:
+        conn.execute('INSERT INTO interviews (id, candidate_email, candidate_name, questions, responses, agent_questions, job_desc, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+                    (interview_id, candidate_email, candidate_name, json.dumps(["Please introduce yourself and tell us about your experience."]), json.dumps([]), json.dumps([]), job_desc, time.strftime('%Y-%m-%d %H:%M:%S')))
+        conn.commit()
+    return jsonify({"status": "Interview started", "interview_id": interview_id, "current_question": "Please introduce yourself and tell us about your experience."})
+
+@app.route('/api/get_interview_state', methods=['GET'])
+def get_interview_state():
+    interview_id = request.args.get('interview_id')
+    if not interview_id:
+        return jsonify({"error": "Interview ID is required"}), 400
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Invalid interview session"}), 404
+        created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - created_at > timedelta(hours=24):
+            # Auto-end interview if expired
+            summary, success = generate_interview_summary(interview_id)
+            if success:
+                hiring_team_email = os.getenv('HIRING_TEAM_EMAIL', 'default@example.com')
+                if send_interview_summary(hiring_team_email, interview['candidate_name'], summary):
+                    logger.info(f"Auto-sent summary to {hiring_team_email} for expired interview {interview_id}")
+                conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+                conn.commit()
+            return jsonify({"error": "Interview session has expired"}), 410
+        questions = json.loads(interview['questions'])
+        responses = json.loads(interview['responses'])
+        agent_questions = json.loads(interview['agent_questions'])
+        messages = []
+        for i, question in enumerate(questions):
+            messages.append({"sender": "Interviewer", "text": question})
+            if i < len(responses):
+                messages.append({"sender": "Candidate", "text": responses[i]})
+        return jsonify({
+            "status": "active" if questions else "pending",
+            "messages": messages,
+            "candidate_name": interview['candidate_name']
+        })
+
+@app.route('/api/submit_agent_question', methods=['POST'])
+def submit_agent_question():
+    data = request.get_json()
+    interview_id = data.get('interview_id')
+    question = data.get('question')
+    if not interview_id or not question:
+        return jsonify({"error": "Interview ID and question are required"}), 400
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Invalid interview session"}), 404
+        created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - created_at > timedelta(hours=24):
+            conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+            conn.commit()
+            return jsonify({"error": "Interview session has expired"}), 410
+        questions = json.loads(interview['questions'])
+        agent_questions = json.loads(interview['agent_questions'])
+        agent_questions.append(question)
+        questions.append(question)
+        conn.execute('UPDATE interviews SET questions = ?, agent_questions = ? WHERE id = ?', (json.dumps(questions), json.dumps(agent_questions), interview_id))
+        conn.commit()
+    return jsonify({"status": "Question submitted", "current_question": question})
+
+@app.route('/api/submit_candidate_response', methods=['POST'])
+def submit_candidate_response():
+    data = request.get_json()
+    interview_id = data.get('interview_id')
+    response = data.get('response')
+    if not interview_id or not response:
+        return jsonify({"error": "Interview ID and response are required"}), 400
+    if len(response.strip()) < 5:
+        return jsonify({"error": "Response must be at least 5 characters long"}), 400
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Invalid interview session"}), 404
+        created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - created_at > timedelta(hours=24):
+            conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+            conn.commit()
+            return jsonify({"error": "Interview session has expired"}), 410
+        responses = json.loads(interview['responses'])
+        responses.append(response.strip())
+        conn.execute('UPDATE interviews SET responses = ? WHERE id = ?', (json.dumps(responses), interview_id))
+        conn.commit()
+    next_question, success = generate_follow_up_question(interview_id, response)
+    if success:
+        return jsonify({"status": "Response received", "next_question": next_question})
+    return jsonify({"status": "Response received", "error": next_question}), 500
+
+@app.route('/api/end_interview', methods=['POST'])
+def end_interview():
+    data = request.get_json()
+    interview_id = data.get('interview_id')
+    if not interview_id:
+        return jsonify({"error": "Interview ID is required"}), 400
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return jsonify({"error": "Invalid interview session"}), 404
+        created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - created_at > timedelta(hours=24):
+            conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+            conn.commit()
+            return jsonify({"error": "Interview session has expired"}), 410
+        summary, success = generate_interview_summary(interview_id)
+        if not success:
+            logger.error(f"Failed to generate summary: {summary}")
+            return jsonify({"error": f"Failed to generate summary: {summary}"}), 500
+        hiring_team_email = os.getenv('HIRING_TEAM_EMAIL', 'default@example.com')
+        if send_interview_summary(hiring_team_email, interview['candidate_name'], summary):
+            logger.info(f"Interview summary sent to {hiring_team_email}")
+        else:
+            logger.error(f"Failed to send summary to {hiring_team_email}")
+            return jsonify({"error": "Failed to send summary to HR team"}), 500
+        conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+        conn.commit()
+    return jsonify({"status": "Interview ended", "summary": summary})
+
+@app.route('/candidate_interview')
+def candidate_interview():
+    interview_id = request.args.get('interview_id')
+    candidate_name = request.args.get('candidate_name')
+    if not interview_id or not candidate_name:
+        return "Invalid interview link: missing interview_id or candidate_name", 400
+    with get_db_connection() as conn:
+        interview = conn.execute('SELECT * FROM interviews WHERE id = ?', (interview_id,)).fetchone()
+        if not interview:
+            return "Invalid or expired interview link", 404
+        if interview['candidate_name'].lower() != candidate_name.lower():
+            return "Unauthorized: Candidate name does not match", 403
+        created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
+        if datetime.now() - created_at > timedelta(hours=24):
+            conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
+            conn.commit()
+            return "Interview session has expired", 410
+    try:
+        return app.send_static_file('candidate_interview.html')
+    except Exception as e:
+        logger.error(f"Error loading candidate_interview.html: {str(e)}")
+        return f"Error loading interview page: {str(e)}", 500
+
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

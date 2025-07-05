@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RecruitAI - Candidate Interview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js" defer></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes pop { 0% { transform: scale(0.9); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+        .chat-message { max-width: 75%; word-wrap: break-word; }
+        .container { animation: fadeIn 0.3s ease-in; }
+    </style>
+</head>
+<body class="bg-gray-50 font-sans overflow-x-hidden">
+    <nav class="bg-gradient-to-r from-blue-600 to-teal-500 text-white sticky top-0 z-50 shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+            <div class="flex items-center space-x-2">
+                <img src="/static/Tariq.png" alt="Logo" class="h-10">
+                <span class="text-2xl font-bold">RecruitAI</span>
+            </div>
+            <div class="flex items-center space-x-6">
+                <span class="text-sm">Candidate Interview</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div class="bg-white rounded-xl shadow-md p-6">
+            <div class="text-3xl font-semibold text-gray-800 mb-4 flex items-center">
+                <i class="fas fa-comments mr-2"></i>Interview: <span id="candidate-name">Candidate</span>
+            </div>
+            <p class="text-gray-600 mb-6">Please respond to the questions below. Your responses will be recorded and sent to the hiring team.</p>
+            <div id="interview-messages" class="max-h-96 overflow-y-auto mb-4 p-4 bg-gray-50 rounded-lg"></div>
+            <div id="interview-input-section" class="flex space-x-2">
+                <textarea id="response-input" class="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" rows="4" placeholder="Type your response here..." aria-label="Response input"></textarea>
+                <button id="send-response" class="bg-blue-600 text-white p-3 rounded-lg hover:bg-blue-700 transition-colors flex items-center" aria-label="Send Response">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+            <div class="mt-4 flex justify-end">
+                <button id="end-interview" class="bg-red-600 text-white py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center" aria-label="End Interview">
+                    <i class="fas fa-stop mr-2"></i>End Interview
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 space-y-2"></div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const state = { loading: false };
+
+            // Get URL parameters
+            const urlParams = new URLSearchParams(window.location.search);
+            const interviewId = urlParams.get('interview_id');
+            const candidateName = urlParams.get('candidate_name');
+
+            if (!interviewId || !candidateName) {
+                showToast('error', 'Invalid interview link');
+                document.getElementById('interview-input-section').classList.add('hidden');
+                document.getElementById('end-interview').classList.add('hidden');
+                return;
+            }
+
+            // Set candidate name
+            document.getElementById('candidate-name').textContent = candidateName;
+
+            // Load interview state
+            function loadInterviewState() {
+                fetch(`/api/get_interview_state?interview_id=${encodeURIComponent(interviewId)}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            showToast('error', data.error);
+                            document.getElementById('interview-input-section').classList.add('hidden');
+                            document.getElementById('end-interview').classList.add('hidden');
+                            return;
+                        }
+                        document.getElementById('candidate-name').textContent = data.candidate_name;
+                        const messages = document.getElementById('interview-messages');
+                        messages.innerHTML = '';
+                        data.messages.forEach(msg => {
+                            const messageClass = msg.sender === 'Candidate' ? 'bg-blue-100 text-blue-800 ml-auto' : 'bg-gray-200 text-gray-800';
+                            messages.innerHTML += `
+                                <div class="chat-message mb-2 p-3 ${messageClass} rounded-lg">
+                                    <strong>${msg.sender}:</strong> ${msg.text}
+                                </div>
+                            `;
+                        });
+                        messages.scrollTop = messages.scrollHeight;
+                    })
+                    .catch(error => {
+                        console.error('Load interview state error:', error);
+                        showToast('error', `Failed to load interview: ${error.message}`);
+                        document.getElementById('interview-input-section').classList.add('hidden');
+                        document.getElementById('end-interview').classList.add('hidden');
+                    });
+            }
+
+            // Send candidate response
+            document.getElementById('send-response').addEventListener('click', () => {
+                const response = document.getElementById('response-input').value.trim();
+                if (!response) {
+                    showToast('warning', 'Please enter a response');
+                    return;
+                }
+                if (state.loading) return;
+                state.loading = true;
+                const btn = document.getElementById('send-response');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                fetch('/api/submit_candidate_response', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interview_id: interviewId, response })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            showToast('error', data.error);
+                            return;
+                        }
+                        document.getElementById('interview-messages').innerHTML += `
+                            <div class="chat-message mb-2 p-3 bg-blue-100 text-blue-800 rounded-lg ml-auto">
+                                <strong>Candidate:</strong> ${response}
+                            </div>
+                            <div class="chat-message mb-2 p-3 bg-gray-200 text-gray-800 rounded-lg">
+                                <strong>Interviewer:</strong> ${data.next_question || 'Thank you for your response.'}
+                            </div>
+                        `;
+                        document.getElementById('response-input').value = '';
+                        document.getElementById('interview-messages').scrollTop = document.getElementById('interview-messages').scrollHeight;
+                        showToast('success', 'Response submitted');
+                    })
+                    .catch(error => {
+                        console.error('Submit response error:', error);
+                        showToast('error', `Failed to submit response: ${error.message}`);
+                    })
+                    .finally(() => {
+                        state.loading = false;
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    });
+            });
+
+            // End interview
+            document.getElementById('end-interview').addEventListener('click', () => {
+                if (state.loading) return;
+                state.loading = true;
+                const btn = document.getElementById('end-interview');
+                btn.disabled = true;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Ending...';
+                fetch('/api/end_interview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ interview_id: interviewId })
+                })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.error) {
+                            showToast('error', data.error);
+                            return;
+                        }
+                        showToast('success', 'Interview ended. Summary sent to hiring team.');
+                        document.getElementById('interview-messages').innerHTML = '<p class="text-gray-500 text-center">Interview has ended. Thank you for participating!</p>';
+                        document.getElementById('interview-input-section').classList.add('hidden');
+                        document.getElementById('end-interview').classList.add('hidden');
+                    })
+                    .catch(error => {
+                        console.error('End interview error:', error);
+                        showToast('error', `Failed to end interview: ${error.message}`);
+                    })
+                    .finally(() => {
+                        state.loading = false;
+                        btn.disabled = false;
+                        btn.innerHTML = '<i class="fas fa-stop mr-2"></i>End Interview';
+                    });
+            });
+
+            // Show Toast
+            function showToast(type, message) {
+                const toast = document.createElement('div');
+                const bgColor = type === 'success' ? 'bg-green-500' : type === 'error' ? 'bg-red-500' : 'bg-yellow-500';
+                toast.className = `flex items-center ${bgColor} text-white text-sm font-medium px-4 py-2 rounded-lg shadow-md animate-pop`;
+                toast.innerHTML = `
+                    <i class="fas ${type === 'success' ? 'fa-check-circle' : type === 'error' ? 'fa-exclamation-circle' : 'fa-info-circle'} mr-2"></i>
+                    ${message}
+                `;
+                document.getElementById('toast-container').appendChild(toast);
+                setTimeout(() => toast.remove(), 3000);
+            }
+
+            // Initial load
+            loadInterviewState();
+        });
+    </script>
+</body>
+</html>
