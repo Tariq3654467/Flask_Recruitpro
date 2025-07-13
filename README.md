@@ -1,101 +1,120 @@
-Recruitment Interview Automation Tool
-This is a Flask-based web application designed to automate the recruitment interview process. It allows for resume processing, candidate interviews via a chat interface, automated question generation, interview summaries, and email notifications. The tool leverages AI models (via the Groq API) for natural language processing and integrates with a SQLite database for storing interview data.
+Recruitment Agent
+The Recruitment Agent is a powerful Flask-based application designed to streamline the recruitment process. It leverages advanced AI models (via the Groq API) and natural language processing (using SentenceTransformer and FAISS) to process resumes, analyze candidate fit, generate reports, conduct interviews, and manage email communications. This tool is ideal for HR professionals and recruiters looking to automate and enhance candidate evaluation.
+
 Features
-
-Process resumes (PDF/DOCX) and evaluate candidate fit against a job description.
-Generate automated follow-up questions during interviews.
-Conduct interviews via a web-based chat interface.
-Automatically end interviews after 24 hours of inactivity and send summaries.
-Send interview schedules, congratulatory emails, feedback emails, and interview summaries via SMTP.
-Export candidate rankings to CSV.
-Generate job descriptions and recruitment reports.
-
-Prerequisites
-
-Python 3.8+
-Required Python packages (see requirements.txt).
-Groq API key (set as GROQ_API_KEY in .env).
-SMTP server credentials (set as SENDER_EMAIL and SENDER_PASSWORD in .env).
-Hiring team email (set as HIRING_TEAM_EMAIL in .env).
-
+Resume Processing: Extract and analyze data from PDF and DOCX resumes, including skills, experience, education, and more.
+Candidate Fit Analysis: Evaluate candidate suitability based on job descriptions with scores, strengths, and red flags.
+Report Generation: Create detailed recruitment reports in PDF and CSV formats.
+Interview Management: Conduct interactive interviews with automated follow-up questions and summaries.
+Email Automation: Send congratulatory, feedback, and interview schedule emails.
+Job Description Generation: Generate professional job descriptions from key terms.
+Vector Database: Use FAISS for efficient resume storage and similarity search.
+Requirements
+Python 3.8 or higher
+Required Python packages (install via requirements.txt):
+flask
+pandas
+python-docx
+pdfplumber
+groq
+sentence-transformers
+numpy
+faiss-cpu
+reportlab
+python-dotenv
+sqlite3 (included with Python)
 Installation
 1. Clone the Repository
-git clone https://github.com/yourusername/recruitment-interview-tool.git
-cd recruitment-interview-tool
+bash
 
+Collapse
+
+Wrap
+
+Run
+
+git clone [https://github.com/yourusername/recruitment-agent.git](https://github.com/Tariq3654467/Flask_Recruitpro)
+cd recruitment-agent
 2. Install Dependencies
-Create a virtual environment and install the required packages:
+Create and activate a virtual environment (optional but recommended):
+
+
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-pip install -r requirements.txt
+Install the required packages:
 
+
+
+Copy
+pip install -r requirements.txt
 3. Set Up Environment Variables
-Create a .env file in the project root with the following content:
-GROQ_API_KEY=your_groq_api_key
-SENDER_EMAIL=your_email@example.com
-SENDER_PASSWORD=your_email_password
+Create a .env file in the project root with the following variables:
+
+Copy
+GROQ_API_KEY=your_groq_api_key_here
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
-HIRING_TEAM_EMAIL=hiring_team@example.com
-BASE_URL=http://localhost:5000
-
-
-Replace your_groq_api_key, your_email@example.com, your_email_password, and hiring_team@example.com with your actual values.
-Ensure your SMTP server (e.g., Gmail) allows less secure apps or uses an app-specific password if 2FA is enabled.
-
-4. Initialize the Database
-The application creates a SQLite database (interviews.db) automatically on startup. Ensure the static folder exists with index.html and candidate_interview.html.
-5. Run the Application
+BASE_URL=http://your_domain_or_localhost:5000
+Replace your_groq_api_key_here with a valid Groq API key.
+4. Run the Application
 Start the Flask server:
+
+bash
+
+Collapse
+
+Wrap
+
+Run
+
+Copy
 python app.py
+The application will be available at http://localhost:5000.
 
-Access the application at http://localhost:5000.
 Usage
-1. Upload Resumes
-
-Navigate to the root URL (/) and upload resumes (PDF/DOCX) along with a job description.
-The system processes resumes and returns candidate rankings with fit scores.
-
-2. Schedule Interviews
-
-Use the /api/send_interview_schedule endpoint to send interview invitations to selected candidates.
-Candidates receive an email with a link to candidate_interview.
-
-3. Conduct Interviews
-
-Candidates access the interview via the provided link and respond to questions.
-The agent generates follow-up questions automatically.
-Interviews end after 24 hours of inactivity, and summaries are sent to the hiring team.
-
-4. End Interview Manually
-
-Use the /api/end_interview endpoint with an interview_id to manually end an interview and generate a summary.
-
-5. Additional Features
-
-Generate job descriptions via /api/generate_job_description.
-Export candidate data to CSV via /api/export_csv.
-Send congratulatory or feedback emails via respective endpoints.
-
+Uploading Resumes
+Navigate to http://localhost:5000.
+Enter a job description and upload one or more PDF/DOCX resumes.
+Submit to process resumes and receive candidate data with scores and analysis.
+Generating Reports
+Use the /api/generate_report endpoint (POST) with candidates and job_description to get a Markdown report.
+Download as PDF via /api/download_pdf (POST).
+Conducting Interviews
+Start an interview with /api/start_interview (POST) by providing candidate_email, candidate_name, and job_description.
+Use /api/get_interview_state (GET) with interview_id to view the conversation.
+Submit candidate responses with /api/submit_candidate_response (POST) and agent questions with /api/submit_agent_question (POST).
+End the interview with /api/end_interview (POST) to generate and send a summary.
+Email Automation
+Send congratulatory emails with /api/send_congratulatory_email (POST) using selected_candidates.
+Send feedback emails with /api/send_feedback_email (POST) using unselected_candidates.
+Schedule interviews with /api/send_interview_schedule (POST) using selected_candidates and schedule.
+Generating Job Descriptions
+Use /api/generate_job_description (POST) with a list of key_terms to generate a job description.
 API Endpoints
 
-/api/process_resumes: Process resumes and evaluate candidates.
-/api/send_interview_schedule: Send interview schedule emails.
-/api/start_interview: Start a new interview session.
-/api/get_interview_state: Get the current state of an interview.
-/api/submit_candidate_response: Submit a candidate's response.
-/api/end_interview: End an interview and send a summary.
-/api/generate_report: Generate a recruitment report.
-Others as listed in app.py.
+Endpoint	Method	Description	Parameters
+/api/process_resumes	POST	Process uploaded resumes	job_description, resumes
+/api/generate_report	POST	Generate a recruitment report	candidates, job_description
+/api/ask_question	POST	Answer a recruitment question	query, candidates, job_description
+/api/export_csv	POST	Export candidate data as CSV	candidates
+/api/download_pdf	POST	Download report as PDF	candidates, job_description
+/api/send_congratulatory_email	POST	Send congratulatory emails	selected_candidates
+/api/send_feedback_email	POST	Send feedback emails	unselected_candidates
+/api/send_interview_schedule	POST	Send interview schedule emails	selected_candidates, schedule
+/api/generate_job_description	POST	Generate a job description	key_terms
+/api/start_interview	POST	Start an interview session	candidate_email, candidate_name, job_description
+/api/get_interview_state	GET	Get current interview state	interview_id
+/api/submit_agent_question	POST	Submit an agent question	interview_id, question
+/api/submit_candidate_response	POST	Submit a candidate response	interview_id, response
+/api/end_interview	POST	End an interview and generate summary	interview_id
+Contributing
+Fork the repository.
+Create a new branch (git checkout -b feature-branch).
+Make changes and commit (git commit -m "Add new feature").
+Push to the branch (git push origin feature-branch).
+Open a Pull Request with a clear description of changes.
+License
+This project is licensed under the MIT License - see the LICENSE file for details.
 
-File Structure
-recruitment-interview-tool/
-├── static/
-│   ├── index.html
-│   └── candidate_interview.html
-├── app.py
-├── requirements.txt
-├── .env
-├── Dockerfile
-└── README.md
-
+Contact
+For support or questions, please open an issue on the GitHub repository or contact the maintainers at thinkrecruit1@gmail.com.com.
