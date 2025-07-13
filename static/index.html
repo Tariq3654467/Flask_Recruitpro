@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RecruitAI - Intelligent Recruitment Assistant</title>
+    <title>Thinkcruit - Intelligent Recruitment Assistant</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@4.0.12/marked.min.js" defer></script>
@@ -23,25 +23,13 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
             <a href="#" class="flex items-center space-x-2 group">
                 <img src="/static/Tariq.png" alt="Logo" class="h-10 transition-transform duration-300 group-hover:rotate-12">
-                <span class="text-2xl font-bold">RecruitAI</span>
+                <span class="text-2xl font-bold">Thinkcruit</span>
             </a>
             <div class="flex items-center space-x-6">
                 <a href="#" class="nav-link" data-page="home"><i class="fas fa-home mr-2"></i>Home</a>
                 <a href="#" class="nav-link" data-page="candidates"><i class="fas fa-users mr-2"></i>Candidates</a>
                 <a href="#" class="nav-link" data-page="chat"><i class="fas fa-comments mr-2"></i>Chat</a>
                 <a href="#" class="nav-link" data-page="reports"><i class="fas fa-chart-bar mr-2"></i>Reports</a>
-                <a href="#" class="nav-link" data-page="settings"><i class="fas fa-cog mr-2"></i>Settings</a>
-                <div class="relative">
-                    <button class="nav-link flex items-center" id="userDropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-user mr-2"></i>Profile
-                    </button>
-                    <div id="userMenu" class="hidden absolute right-0 mt-2 w-48 bg-gradient-to-r from-blue-600 to-teal-500 rounded-lg shadow-lg py-2 z-50">
-                        <a href="#" class="block px-4 py-2 text-white hover:bg-white/10">My Account</a>
-                        <a href="#" class="block px-4 py-2 text-white hover:bg-white/10">Settings</a>
-                        <hr class="border-gray-300 mx-2">
-                        <a href="#" class="block px-4 py-2 text-red-200 hover:bg-white/10">Logout</a>
-                    </div>
-                </div>
             </div>
         </div>
     </nav>
@@ -80,6 +68,10 @@
                                 <input type="checkbox" id="rag-toggle" class="mr-2" checked>
                                 <span class="text-sm text-gray-700">Enable RAG Processing</span>
                             </label>
+                            <div class="mt-2">
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Top Candidates to Shortlist</label>
+                                <input type="number" id="top-n" value="5" min="1" max="20" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
+                            </div>
                         </div>
                         <button id="process-resumes" class="bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors flex items-center" aria-label="Process Resumes">
                             <i class="fas fa-cogs mr-2"></i>Process Resumes
@@ -100,9 +92,6 @@
                             <span class="text-sm font-medium">Vector Database</span>
                             <span id="vector-status" class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Offline (0 resumes)</span>
                         </div>
-                        <button id="init-db" class="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center" aria-label="Initialize Vector DB">
-                            <i class="fas fa-cogs mr-2"></i>Initialize Vector DB
-                        </button>
                     </div>
                     <div class="bg-white rounded-xl shadow-md p-6">
                         <div class="text-lg font-medium text-gray-700 mb-4 flex items-center"><i class="fas fa-chart-line mr-2"></i>Analytics</div>
@@ -237,91 +226,6 @@
                 </div>
             </div>
         </div>
-
-        <div id="settings" class="page">
-            <div class="text-3xl font-semibold text-gray-800 mb-4">System Settings</div>
-            <p class="text-gray-600 mb-6">Configure your recruitment assistant preferences and system options</p>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <div class="bg-white rounded-xl shadow-md p-6">
-                    <div class="text-lg font-medium text-gray-700 mb-4 flex items-center"><i class="fas fa-sliders-h mr-2"></i>Processing Settings</div>
-                    <div class="space-y-4">
-                        <label class="block text-sm font-medium text-gray-700">AI Model Selection</label>
-                        <select id="model-selection" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                            <option value="mixtral-8x7b-32768" selected>Mixtral (8x7B) - Recommended</option>
-                            <option value="llama3-70b-8192">Llama 3 (70B)</option>
-                        </select>
-                        <label class="block text-sm font-medium text-gray-700">RAG Configuration</label>
-                        <label class="flex items-center">
-                            <input type="checkbox" id="rag-enable" class="mr-2" checked>
-                            <span class="text-sm text-gray-700">Enable RAG Processing</span>
-                        </label>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Top Candidates to Shortlist</label>
-                            <input type="number" id="top-n" value="5" min="1" max="20" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Similarity Threshold</label>
-                            <input type="range" id="similarity-threshold" min="0" max="100" value="70" class="w-full">
-                            <div class="flex justify-between text-xs text-gray-500">
-                                <span>0%</span><span>70%</span><span>100%</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="bg-white rounded-xl shadow-md p-6">
-                    <div class="text-lg font-medium text-gray-700 mb-4 flex items-center"><i class="fas fa-database mr-2"></i>Vector Database</div>
-                    <div class="flex justify-between items-center mb-4">
-                        <span class="text-sm font-medium">FAISS Status</span>
-                        <span id="db-status" class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-0.5 rounded">Offline (0 resumes)</span>
-                    </div>
-                    <div class="mb-4">
-                        <div class="flex justify-between text-sm mb-1">
-                            <span>Resume Index</span>
-                            <span id="resume-index-count">0 resumes</span>
-                        </div>
-                        <div class="w-full bg-gray-200 rounded-full h-2.5">
-                            <div id="db-progress" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
-                        </div>
-                    </div>
-                    <div class="space-y-2">
-                        <button id="reindex-db" class="w-full bg-gray-200 text-gray-700 py-2 rounded-lg hover:bg-gray-300 transition-colors flex items-center justify-center" aria-label="Re-index Database">
-                            <i class="fas fa-sync mr-2"></i>Re-index Database
-                        </button>
-                        <button id="clear-db" class="w-full bg-red-200 text-red-700 py-2 rounded-lg hover:bg-red-300 transition-colors flex items-center justify-center" aria-label="Clear Database">
-                            <i class="fas fa-trash mr-2"></i>Clear Database
-                        </button>
-                    </div>
-                    <div class="mt-6">
-                        <div class="text-lg font-medium text-gray-700 mb-4 flex items-center"><i class="fas fa-envelope mr-2"></i>Email Configuration</div>
-                        <div class="space-y-4">
-                            <input type="email" id="company-email" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter your company email" aria-label="Company email">
-                            <input type="password" id="company-email-password" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter email password" aria-label="Email password">
-                            <input type="email" id="hiring-team-email" class="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" placeholder="Enter hiring team email" aria-label="Hiring team email">
-                            <button id="save-email-config" class="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center" aria-label="Save Email Configuration">
-                                <i class="fas fa-save mr-2"></i>Save Email Configuration
-                            </button>
-                        </div>
-                    </div>
-                    <div class="mt-6">
-                        <div class="text-lg font-medium text-gray-700 mb-4 flex items-center"><i class="fas fa-bell mr-2"></i>Notifications</div>
-                        <div class="space-y-2">
-                            <label class="flex items-center">
-                                <input type="checkbox" id="email-notify" class="mr-2" checked>
-                                <span class="text-sm text-gray-700">Email notifications</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" id="report-notify" class="mr-2" checked>
-                                <span class="text-sm text-gray-700">Report generation alerts</span>
-                            </label>
-                            <label class="flex items-center">
-                                <input type="checkbox" id="update-notify" class="mr-2">
-                                <span class="text-sm text-gray-700">System update notifications</span>
-                            </label>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
     </div>
 
     <footer class="bg-gradient-to-r from-gray-800 to-indigo-900 text-white py-8 mt-8">
@@ -351,12 +255,11 @@
                 </div>
                 <div>
                     <h5 class="text-lg font-semibold mb-4">Contact</h5>
-                    <p class="text-sm">Email: support@recruitai.com</p>
-                    <p class="text-sm">Phone: +1 (800) 123-4567</p>
+                    <p class="text-sm">Email: thinkrecruit1@gmail.com</p>
                 </div>
             </div>
             <div class="text-center mt-6 border-t border-gray-700 pt-4">
-                <p class="text-sm">© 2025 RecruitAI. All rights reserved.</p>
+                <p class="text-sm">© 2025 Thinkcruit. All rights reserved.</p>
             </div>
         </div>
     </footer>
@@ -367,7 +270,7 @@
         document.addEventListener('DOMContentLoaded', () => {
             let processedCandidates = [];
             let currentInterview = null;
-            const state = { loading: false, emailConfigSet: false };
+            const state = { loading: false, emailConfigSet: true }; // Hardcoded email config assumed
 
             // Debounce function to limit rapid API calls
             function debounce(func, wait) {
@@ -400,16 +303,6 @@
                         document.getElementById('email-buttons')?.classList.add('hidden');
                     }
                 });
-            });
-
-            // User Menu
-            const userDropdown = document.getElementById('userDropdown');
-            const userMenu = document.getElementById('userMenu');
-            userDropdown.addEventListener('click', () => {
-                userMenu.classList.toggle('hidden');
-            });
-            document.addEventListener('click', (e) => {
-                if (!userDropdown.contains(e.target) && !userMenu.contains(e.target)) userMenu.classList.add('hidden');
             });
 
             // File Upload
@@ -479,34 +372,6 @@
                     });
             });
 
-            // Initialize Vector DB
-            document.getElementById('init-db').addEventListener('click', () => {
-                if (state.loading) return;
-                state.loading = true;
-                const btn = document.getElementById('init-db');
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Initializing...';
-                fetch('/api/init_vector_db', { method: 'POST' })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            showToast('error', data.error);
-                            return;
-                        }
-                        showToast('success', 'Vector database initialized');
-                        updateVectorDBStatus();
-                    })
-                    .catch(error => {
-                        console.error('Init DB error:', error);
-                        showToast('error', `Failed to initialize database: ${error.message}`);
-                    })
-                    .finally(() => {
-                        state.loading = false;
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-cogs mr-2"></i>Initialize Vector DB';
-                    });
-            });
-
             // Update Vector DB Status
             function updateVectorDBStatus() {
                 fetch('/api/vector_db_status')
@@ -521,10 +386,6 @@
                         const count = data.resume_count || 0;
                         document.getElementById('vector-status').textContent = `${status} (${count} resumes)`;
                         document.getElementById('vector-status').className = `text-xs font-medium px-2.5 py-0.5 rounded ${statusClass}`;
-                        document.getElementById('db-status').textContent = `${status} (${count} resumes)`;
-                        document.getElementById('db-status').className = `text-xs font-medium px-2.5 py-0.5 rounded ${statusClass}`;
-                        document.getElementById('resume-index-count').textContent = `${count} resumes`;
-                        document.getElementById('db-progress').style.width = `${Math.min(count * 10, 100)}%`;
                     })
                     .catch(error => {
                         console.error('Vector DB status error:', error);
@@ -618,13 +479,8 @@
             // Start Interview
             function startInterview(candidate) {
                 const jobDesc = document.getElementById('job-description').value.trim();
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
                 if (!jobDesc) {
                     showToast('warning', 'Please enter a job description before starting an interview');
-                    return;
-                }
-                if (!hiringTeamEmail || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please configure a valid hiring team email in settings');
                     return;
                 }
                 if (state.loading) return;
@@ -756,11 +612,6 @@
             // End Interview
             document.getElementById('end-interview').addEventListener('click', () => {
                 if (!currentInterview) return;
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
-                if (!hiringTeamEmail || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please provide a valid hiring team email in settings');
-                    return;
-                }
                 if (state.loading) return;
                 state.loading = true;
                 const btn = document.getElementById('end-interview');
@@ -769,7 +620,7 @@
                 fetch('/api/end_interview', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ interview_id: currentInterview.id, hiring_team_email: hiringTeamEmail })
+                    body: JSON.stringify({ interview_id: currentInterview.id })
                 })
                     .then(response => response.json())
                     .then(data => {
@@ -797,13 +648,8 @@
             // Send Congratulatory Emails
             document.getElementById('send-congratulatory-emails').addEventListener('click', () => {
                 const selectedCandidates = processedCandidates.filter(c => c.selected);
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
                 if (!selectedCandidates.length) {
                     showToast('warning', 'Please select at least one candidate');
-                    return;
-                }
-                if (!hiringTeamEmail || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please provide a valid hiring team email in settings');
                     return;
                 }
                 if (state.loading) return;
@@ -838,13 +684,8 @@
             // Send Feedback Emails
             document.getElementById('send-feedback-emails').addEventListener('click', () => {
                 const unselectedCandidates = processedCandidates.filter(c => !c.selected);
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
                 if (!unselectedCandidates.length) {
                     showToast('warning', 'No unselected candidates to send feedback');
-                    return;
-                }
-                if (!hiringTeamEmail || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please provide a valid hiring team email in settings');
                     return;
                 }
                 if (state.loading) return;
@@ -881,7 +722,6 @@
                 const selectedCandidates = processedCandidates.filter(c => c.selected);
                 const schedule = document.getElementById('interview-schedule-input').value.trim();
                 const jobDesc = document.getElementById('job-description').value.trim();
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
                 if (!selectedCandidates.length) {
                     showToast('warning', 'Please select at least one candidate');
                     return;
@@ -892,10 +732,6 @@
                 }
                 if (!schedule) {
                     showToast('warning', 'Please enter an interview schedule');
-                    return;
-                }
-                if (!hiringTeamEmail || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please provide a valid hiring team email in settings');
                     return;
                 }
                 if (state.loading) return;
@@ -1057,51 +893,50 @@
                     });
             });
 
-            // Download PDF (Placeholder for future implementation)
+            // Download PDF (Updated to include job_description)
             document.getElementById('download-pdf').addEventListener('click', () => {
-                showToast('info', 'PDF download is not yet implemented');
-            });
-
-            // Save Email Configuration
-            document.getElementById('save-email-config').addEventListener('click', () => {
-                const senderEmail = document.getElementById('company-email').value.trim();
-                const senderPassword = document.getElementById('company-email-password').value.trim();
-                const hiringTeamEmail = document.getElementById('hiring-team-email').value.trim();
-                if (!senderEmail || !senderPassword || !hiringTeamEmail) {
-                    showToast('warning', 'Please enter company email, password, and hiring team email');
+                const selectedOptions = Array.from(document.getElementById('candidate-select').selectedOptions).map(opt => opt.value);
+                const selectedCandidates = processedCandidates.filter(c => selectedOptions.includes(c.id));
+                const jobDesc = document.getElementById('job-description').value.trim();
+                if (!selectedCandidates.length) {
+                    showToast('warning', 'Please select at least one candidate');
                     return;
                 }
-                if (!senderEmail.includes('@') || !hiringTeamEmail.includes('@')) {
-                    showToast('warning', 'Please provide valid email addresses');
+                if (!jobDesc) {
+                    showToast('warning', 'Please enter a job description');
                     return;
                 }
                 if (state.loading) return;
                 state.loading = true;
-                const btn = document.getElementById('save-email-config');
+                const btn = document.getElementById('download-pdf');
                 btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Saving...';
-                fetch('/api/set_email_config', {
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Downloading...';
+                fetch('/api/download_pdf', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sender_email: senderEmail, sender_password: senderPassword })
+                    body: JSON.stringify({ candidates: selectedCandidates, job_description: jobDesc })
                 })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            showToast('error', data.error);
-                            return;
-                        }
-                        state.emailConfigSet = true;
-                        showToast('success', 'Email configuration saved');
+                    .then(response => {
+                        if (!response.ok) throw new Error('Failed to generate PDF');
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'recruitment_report.pdf';
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        showToast('success', 'PDF downloaded successfully');
                     })
                     .catch(error => {
-                        console.error('Save email config error:', error);
-                        showToast('error', `Failed to save email config: ${error.message}`);
+                        console.error('Download PDF error:', error);
+                        showToast('error', `Failed to download PDF: ${error.message}`);
                     })
                     .finally(() => {
                         state.loading = false;
                         btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-save mr-2"></i>Save Email Configuration';
+                        btn.innerHTML = '<i class="fas fa-download mr-2"></i>Download PDF';
                     });
             });
 
@@ -1208,75 +1043,6 @@
                 document.getElementById('toast-container').appendChild(toast);
                 setTimeout(() => toast.remove(), 3000);
             }
-
-            // Re-index Database
-            document.getElementById('reindex-db').addEventListener('click', () => {
-                if (state.loading) return;
-                state.loading = true;
-                const btn = document.getElementById('reindex-db');
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Re-indexing...';
-                fetch('/api/reindex_vector_db', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            showToast('error', data.error);
-                            return;
-                        }
-                        showToast('success', 'Database re-indexed successfully');
-                        updateVectorDBStatus();
-                    })
-                    .catch(error => {
-                        console.error('Reindex DB error:', error);
-                        showToast('error', `Failed to re-index database: ${error.message}`);
-                    })
-                    .finally(() => {
-                        state.loading = false;
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-sync mr-2"></i>Re-index Database';
-                    });
-            });
-
-            // Clear Database
-            document.getElementById('clear-db').addEventListener('click', () => {
-                if (state.loading) return;
-                state.loading = true;
-                const btn = document.getElementById('clear-db');
-                btn.disabled = true;
-                btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Clearing...';
-                fetch('/api/clear_vector_db', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.error) {
-                            showToast('error', data.error);
-                            return;
-                        }
-                        processedCandidates = [];
-                        uploadedFiles = [];
-                        document.getElementById('resume-count').textContent = '0';
-                        document.getElementById('resume-progress').style.width = '0%';
-                        displayCandidates([]);
-                        updateCandidateSelect();
-                        updateAnalytics();
-                        showToast('success', 'Database cleared successfully');
-                        updateVectorDBStatus();
-                    })
-                    .catch(error => {
-                        console.error('Clear DB error:', error);
-                        showToast('error', `Failed to clear database: ${error.message}`);
-                    })
-                    .finally(() => {
-                        state.loading = false;
-                        btn.disabled = false;
-                        btn.innerHTML = '<i class="fas fa-trash mr-2"></i>Clear Database';
-                    });
-            });
 
             // Initial Vector DB Status
             updateVectorDBStatus();

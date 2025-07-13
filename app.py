@@ -19,6 +19,11 @@ from dotenv import load_dotenv
 import sqlite3
 from urllib.parse import quote
 from datetime import datetime, timedelta
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table
+from reportlab.lib.styles import getSampleStyleSheet
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__, static_folder=os.path.abspath('static'))
 app.secret_key = secrets.token_hex(16)
@@ -52,7 +57,6 @@ def get_db_connection():
 
 def init_db():
     with get_db_connection() as conn:
-        # Drop existing table (for development) and recreate with correct schema
         conn.execute('DROP TABLE IF EXISTS interviews')
         conn.execute('''CREATE TABLE interviews
                         (id TEXT PRIMARY KEY, candidate_email TEXT, candidate_name TEXT, questions TEXT,
@@ -81,7 +85,7 @@ def get_vector_store():
         }
     return vector_stores[session_id]
 
-# Helper Functions (unchanged)
+# Helper Functions
 def extract_text_from_pdf(file):
     text = ""
     try:
@@ -183,7 +187,7 @@ def generate_report(candidates, job_desc):
             messages=[{"role": "user", "content": prompt}],
             model="llama3-70b-8192",
             temperature=0.4,
-            max_tokens=4000
+            max_tokens=2000
         )
         return chat_completion.choices[0].message.content, True
     except Exception as e:
@@ -320,15 +324,14 @@ def generate_interview_summary(interview_id):
             logger.error(f"Error generating interview summary: {str(e)}")
             return str(e), False
 
-def send_interview_summary(recipient_email, candidate_name, summary, sender_email=None, sender_password=None):
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    sender_email = sender_email or email_config.get('sender_email')
-    sender_password = sender_password or email_config.get('sender_password')
+def send_interview_summary(recipient_email, candidate_name, summary):
+    sender_email = "thinkrecruit1@gmail.com"
+    sender_password = "hhjqhktxqkaviyhe"
     try:
         if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
             logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
             return False
-        msg = MIMEText(f"Dear Hiring Team,\n\nPlease find the interview summary for {candidate_name} below:\n\n{summary}\n\nBest regards,\nRecruitAI")
+        msg = MIMEText(f"Dear Hiring Team,\n\nPlease find the interview summary for {candidate_name} below:\n\n{summary}\n\nBest regards,\nThinkcruit")
         msg['Subject'] = f"Interview Summary for {candidate_name}"
         msg['From'] = sender_email
         msg['To'] = recipient_email
@@ -342,10 +345,9 @@ def send_interview_summary(recipient_email, candidate_name, summary, sender_emai
         logger.error(f"Failed to send interview summary to {recipient_email}: {str(e)}")
         return False
 
-def send_congratulatory_email(recipient_email, candidate_name, sender_email=None, sender_password=None):
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    sender_email = sender_email or email_config.get('sender_email')
-    sender_password = sender_password or email_config.get('sender_password')
+def send_congratulatory_email(recipient_email, candidate_name):
+    sender_email = "thinkrecruit1@gmail.com"
+    sender_password = "hhjqhktxqkaviyhe"
     try:
         if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
             logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
@@ -364,10 +366,9 @@ def send_congratulatory_email(recipient_email, candidate_name, sender_email=None
         logger.error(f"Failed to send congratulatory email to {recipient_email} from {sender_email}: {str(e)}")
         return False
 
-def send_feedback_email(recipient_email, candidate_name, feedback, sender_email=None, sender_password=None):
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    sender_email = sender_email or email_config.get('sender_email')
-    sender_password = sender_password or email_config.get('sender_password')
+def send_feedback_email(recipient_email, candidate_name, feedback):
+    sender_email = "thinkrecruit1@gmail.com"
+    sender_password = "hhjqhktxqkaviyhe"
     try:
         if not all([recipient_email, sender_email, sender_password]) or '@' not in recipient_email or '@' not in sender_email:
             logger.error(f"Invalid email address: {recipient_email} or {sender_email}")
@@ -389,14 +390,9 @@ def send_feedback_email(recipient_email, candidate_name, feedback, sender_email=
         logger.error(f"Failed to send feedback email to {recipient_email} from {sender_email}: {str(e)}")
         return False
 
-def send_interview_schedule_email(recipient_email, candidate_name, schedule, interview_id, sender_email=None, sender_password=None):
-    email_config = session.get('email_config') or {
-        'sender_email': os.getenv('SENDER_EMAIL'),
-        'sender_password': os.getenv('SENDER_PASSWORD')
-    }
-    sender_email = sender_email or email_config.get('sender_email')
-    sender_password = sender_password or email_config.get('sender_password')
-    
+def send_interview_schedule_email(recipient_email, candidate_name, schedule, interview_id):
+    sender_email = "thinkrecruit1@gmail.com"
+    sender_password = "hhjqhktxqkaviyhe"
     if not all([recipient_email, sender_email, sender_password, interview_id, candidate_name]):
         logger.error(f"Missing required parameters: recipient_email={recipient_email}, sender_email={sender_email}, interview_id={interview_id}, candidate_name={candidate_name}")
         return False
@@ -406,7 +402,6 @@ def send_interview_schedule_email(recipient_email, candidate_name, schedule, int
 
     base_url = os.getenv('BASE_URL', 'http://localhost:5000')
     website_link = f"{base_url}/candidate_interview?interview_id={quote(interview_id)}&candidate_name={quote(candidate_name)}"
-    
     schedule_text = schedule or f"Interview scheduled for {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(time.time() + 3600))} PKT via chat at {website_link}."
     
     email_body = f"""Dear {candidate_name},\n\nCongratulations on being shortlisted for the position! We are excited to invite you for an interview. Details are as follows:\n\n{schedule_text}\n\nPlease join via the link above. Best regards,\nThe Hiring Team"""
@@ -425,6 +420,22 @@ def send_interview_schedule_email(recipient_email, candidate_name, schedule, int
     except Exception as e:
         logger.error(f"Failed to send interview schedule email to {recipient_email} from {sender_email}: {str(e)}")
         return False
+
+def make_table(table_data):
+    table = Table(table_data)
+    table.setStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 14),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.beige),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.black),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 12)
+    ])
+    return table
 
 # API Endpoints
 @app.route('/')
@@ -463,87 +474,118 @@ def vector_db_status():
 def process_resumes():
     if 'job_description' not in request.form or not request.files.getlist('resumes'):
         return jsonify({"error": "Job description and resumes are required"}), 400
+
     job_desc = request.form['job_description']
+    session['job_description'] = job_desc  # Store in session
     rag_mode = request.form.get('rag_mode', 'false').lower() == 'true'
     processed_candidates = []
     vector_store = get_vector_store()
+
+    # Reset vector store if last processed is older than 1 hour
     if time.time() - vector_store.get('last_processed', 0) > 3600:
         vector_store['index'] = faiss.IndexFlatIP(embedding_size)
         vector_store['metadata'] = []
         vector_store['resume_count'] = 0
     vector_store['last_processed'] = time.time()
+
+    files = request.files.getlist('resumes')
+    if not files:
+        return jsonify({"error": "No resume files provided"}), 400
+
+    # Cache processed files based on filename and content hash
+    processed_cache = session.get('processed_cache', {})
+    new_files = [f for f in files if f.filename not in processed_cache or processed_cache[f.filename]['text'] != hash(f.read())]
+    for f in new_files:
+        f.seek(0)  # Reset file pointer after hash calculation
+
+    if not new_files:
+        logger.info("All resumes already processed, returning cached data")
+        return jsonify([processed_cache[f.filename] for f in files if f.filename in processed_cache])
+
+    # Parallel text extraction
+    def extract_text(file):
+        if file.mimetype == "application/pdf":
+            text, success = extract_text_from_pdf(file)
+        else:  # Assuming docx or msword
+            text, success = extract_text_from_docx(file)
+        return (file.filename, text, success) if success else (file.filename, None, False)
+
+    with ThreadPoolExecutor(max_workers=min(4, len(new_files))) as executor:
+        results = list(executor.map(extract_text, new_files))
+
+    # Filter successful extractions
+    texts = [(filename, text) for filename, text, success in results if success and text]
+    if not texts:
+        return jsonify({"error": "Failed to extract text from any resume"}), 500
+
+    # Batch embeddings
+    texts_to_embed = [text for _, text in texts]
+    embeddings = embedding_model.encode(texts_to_embed, convert_to_numpy=True).astype('float32')
+    metadata = [
+        {
+            "filename": filename,
+            "text": text[:10000],  # Truncate to avoid memory issues
+            "id": str(uuid.uuid4())
+        }
+        for filename, text in texts
+    ]
+
+    # Update FAISS index with batch
+    if embeddings.size > 0:
+        if vector_store['index'].ntotal == 0:
+            vector_store['index'] = faiss.IndexFlatIP(embedding_size)
+        vector_store['index'].add(embeddings)
+        vector_store['metadata'].extend(metadata)
+        vector_store['resume_count'] += len(embeddings)
+
     if rag_mode:
-        embeddings = []
-        metadata = []
-        for file in request.files.getlist('resumes'):
-            if file.mimetype == "application/pdf":
-                text, success = extract_text_from_pdf(file)
-            elif file.mimetype in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
-                text, success = extract_text_from_docx(file)
-            else:
-                logger.warning(f"Unsupported file type: {file.mimetype}")
-                continue
+        # Batch analysis
+        def process_candidate(idx):
+            resume_text = texts[idx][1]
+            parsed_data, success = extract_resume_data(resume_text)
             if not success:
-                continue
-            existing = next((m for m in vector_store['metadata'] if m['filename'] == file.filename and m['text'] == text[:10000]), None)
-            if existing:
-                continue
-            embedding = embedding_model.encode(text)
-            embeddings.append(embedding)
-            metadata.append({
-                "filename": file.filename,
-                "text": text[:10000],
-                "id": str(uuid.uuid4())
-            })
-            vector_store['resume_count'] += 1
-        if embeddings:
-            embeddings_array = np.array(embeddings).astype('float32')
-            if vector_store['index'] is None:
-                vector_store['index'] = faiss.IndexFlatIP(embedding_size)
-            vector_store['index'].add(embeddings_array)
-            vector_store['metadata'].extend(metadata)
-            query_embedding = embedding_model.encode([job_desc])
-            query_embedding = np.array(query_embedding).astype('float32')
-            distances, indices = vector_store['index'].search(query_embedding, vector_store['index'].ntotal)
-            for idx, distance in zip(indices[0], distances[0]):
-                if idx < 0 or idx >= len(vector_store['metadata']):
-                    continue
-                resume_data = vector_store['metadata'][idx]
-                parsed_data, success = extract_resume_data(resume_data['text'])
-                if success:
-                    analysis_data, success = analyze_candidate_fit(parsed_data, job_desc)
-                    if success:
-                        candidate_data = {
-                            **parsed_data,
-                            **analysis_data,
-                            "filename": resume_data['filename'],
-                            "id": resume_data['id'],
-                            "initial_similarity": float(distance)
-                        }
-                        processed_candidates.append(candidate_data)
+                return None
+            analysis_data, success = analyze_candidate_fit(parsed_data, job_desc)
+            if not success:
+                return None
+            return {
+                **parsed_data,
+                **analysis_data,
+                "filename": metadata[idx]["filename"],
+                "id": metadata[idx]["id"],
+                "initial_similarity": 0.0  # Placeholder, as similarity search is optional here
+            }
+
+        with ThreadPoolExecutor(max_workers=min(4, len(texts))) as executor:
+            candidate_results = list(executor.map(process_candidate, range(len(texts))))
+
+        processed_candidates = [c for c in candidate_results if c is not None]
     else:
-        for file in request.files.getlist('resumes'):
-            if file.mimetype == "application/pdf":
-                text, success = extract_text_from_pdf(file)
-            elif file.mimetype in ["application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/msword"]:
-                text, success = extract_text_from_docx(file)
-            else:
-                logger.warning(f"Unsupported file type: {file.mimetype}")
-                continue
+        for idx, (filename, text) in enumerate(texts):
+            parsed_data, success = extract_resume_data(text)
             if not success:
                 continue
-            parsed_data, success = extract_resume_data(text)
-            if success:
-                analysis_data, success = analyze_candidate_fit(parsed_data, job_desc)
-                if success:
-                    candidate_data = {
-                        **parsed_data,
-                        **analysis_data,
-                        "filename": file.filename,
-                        "id": str(uuid.uuid4())
-                    }
-                    processed_candidates.append(candidate_data)
+            analysis_data, success = analyze_candidate_fit(parsed_data, job_desc)
+            if not success:
+                continue
+            candidate_data = {
+                **parsed_data,
+                **analysis_data,
+                "filename": filename,
+                "id": metadata[idx]["id"]
+            }
+            processed_candidates.append(candidate_data)
+
+    # Update cache and sort by score
+    for candidate in processed_candidates:
+        processed_cache[candidate["filename"]] = {
+            "text": hash(texts[[t[0] for t in texts].index(candidate["filename"])][1]),
+            **candidate
+        }
+    session['processed_cache'] = processed_cache
     processed_candidates.sort(key=lambda x: x.get('score', 0), reverse=True)
+
+    logger.info(f"Processed {len(processed_candidates)} resumes at {datetime.now()}")
     return jsonify(processed_candidates)
 
 @app.route('/api/generate_report', methods=['POST'])
@@ -613,8 +655,7 @@ def send_congratulatory_email_endpoint():
     data = request.get_json()
     logger.debug(f"Received send_congratulatory_email request: {data}")
     selected_candidates = data.get('selected_candidates', [])
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    if not selected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+    if not selected_candidates or not "thinkrecruit1@gmail.com" or not "hhjqhktxqkaviyhe":
         logger.error("Selected candidates or email credentials are missing")
         return jsonify({"error": "Selected candidates or email credentials are required"}), 400
     success_count = 0
@@ -635,8 +676,7 @@ def send_feedback_email_endpoint():
     data = request.get_json()
     logger.debug(f"Received send_feedback_email request: {data}")
     unselected_candidates = data.get('unselected_candidates', [])
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    if not unselected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+    if not unselected_candidates or not "thinkrecruit1@gmail.com" or not "hhjqhktxqkaviyhe":
         logger.error("Unselected candidates or email credentials are missing")
         return jsonify({"error": "Unselected candidates or email credentials are required"}), 400
     success_count = 0
@@ -668,8 +708,7 @@ def send_interview_schedule_endpoint():
     logger.debug(f"Received send_interview_schedule request: {data}")
     selected_candidates = data.get('selected_candidates', [])
     schedule = data.get('schedule', "")
-    email_config = session.get('email_config') or {'sender_email': os.getenv('SENDER_EMAIL'), 'sender_password': os.getenv('SENDER_PASSWORD')}
-    if not selected_candidates or not email_config.get('sender_email') or not email_config.get('sender_password'):
+    if not selected_candidates or not "thinkrecruit1@gmail.com" or not "hhjqhktxqkaviyhe":
         logger.error("Selected candidates or email credentials are missing")
         return jsonify({"error": "Selected candidates or email credentials are required"}), 400
     success_count = 0
@@ -705,20 +744,6 @@ def generate_job_description_endpoint():
     logger.error(f"Failed to generate job description: {job_description}")
     return jsonify({"error": f"Failed to generate job description: {job_description}"}), 500
 
-@app.route('/api/set_email_config', methods=['POST'])
-def set_email_config():
-    data = request.get_json()
-    sender_email = data.get('sender_email')
-    sender_password = data.get('sender_password')
-    if not sender_email or '@' not in sender_email or not sender_password:
-        return jsonify({"error": "Valid sender email and password are required"}), 400
-    session['email_config'] = {
-        'sender_email': sender_email,
-        'sender_password': sender_password
-    }
-    logger.info(f"Email configuration set for session: {sender_email}")
-    return jsonify({"status": "Email configuration saved"})
-
 @app.route('/api/start_interview', methods=['POST'])
 def start_interview():
     data = request.get_json()
@@ -745,7 +770,6 @@ def get_interview_state():
             return jsonify({"error": "Invalid interview session"}), 404
         created_at = datetime.strptime(interview['created_at'], '%Y-%m-%d %H:%M:%S')
         if datetime.now() - created_at > timedelta(hours=24):
-            # Auto-end interview if expired
             summary, success = generate_interview_summary(interview_id)
             if success:
                 hiring_team_email = os.getenv('HIRING_TEAM_EMAIL', 'default@example.com')
@@ -838,7 +862,7 @@ def end_interview():
         if not success:
             logger.error(f"Failed to generate summary: {summary}")
             return jsonify({"error": f"Failed to generate summary: {summary}"}), 500
-        hiring_team_email = os.getenv('HIRING_TEAM_EMAIL', 'default@example.com')
+        hiring_team_email = os.getenv('HIRING_TEAM_EMAIL', 'thinkrecruit1@gmail.com')
         if send_interview_summary(hiring_team_email, interview['candidate_name'], summary):
             logger.info(f"Interview summary sent to {hiring_team_email}")
         else:
@@ -847,6 +871,83 @@ def end_interview():
         conn.execute('DELETE FROM interviews WHERE id = ?', (interview_id,))
         conn.commit()
     return jsonify({"status": "Interview ended", "summary": summary})
+
+@app.route('/api/download_pdf', methods=['POST'])
+def download_pdf():
+    data = request.get_json()
+    logger.debug(f"Received download_pdf request at {datetime.now()}: {data}")
+
+    candidates = data.get('candidates', [])
+    if not candidates:
+        logger.error(f"No candidates data provided at {datetime.now()}")
+        return jsonify({"error": "No candidates data"}), 400
+
+    job_desc = data.get('job_description', session.get('job_description', 'No job description provided.'))
+    report, success = generate_report(candidates, job_desc)
+    if not success:
+        logger.error(f"Failed to generate report at {datetime.now()}: {report}")
+        return jsonify({"error": f"Failed to generate report: {report}"}), 500
+
+    try:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter)
+        styles = getSampleStyleSheet()
+        story = []
+        table_data = []
+        in_table = False
+
+        for line in report.split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+
+            if line.startswith('# '):
+                if in_table and table_data:
+                    story.append(make_table(table_data))
+                    table_data = []
+                    in_table = False
+                story.append(Paragraph(line[2:], styles['Heading1']))
+
+            elif line.startswith('## '):
+                if in_table and table_data:
+                    story.append(make_table(table_data))
+                    table_data = []
+                    in_table = False
+                story.append(Paragraph(line[3:], styles['Heading2']))
+
+            elif line.startswith('|'):
+                in_table = True
+                cells = [cell.strip() for cell in line.split('|')[1:-1]]
+                if cells:
+                    table_data.append(cells)
+
+            else:
+                if in_table and table_data:
+                    story.append(make_table(table_data))
+                    table_data = []
+                    in_table = False
+                story.append(Paragraph(line, styles['BodyText']))
+
+            story.append(Spacer(1, 12))
+
+        # Flush any remaining table data
+        if in_table and table_data:
+            story.append(make_table(table_data))
+
+        doc.build(story)
+        buffer.seek(0)
+        logger.info(f"PDF generated successfully at {datetime.now()} for {len(candidates)} candidates")
+
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name='recruitment_report.pdf'
+        )
+
+    except Exception as e:
+        logger.error(f"PDF generation failed at {datetime.now()}: {str(e)}", exc_info=True)
+        return jsonify({"error": f"PDF generation failed: {str(e)}"}), 500
 
 @app.route('/candidate_interview')
 def candidate_interview():
